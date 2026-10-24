@@ -19,6 +19,7 @@ export default async function DashboardPage() {
   const data = await getDashboardData();
   const user = await getSpursUser();
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
+  const verified = user && "kyc_status" in user && user.kyc_status === "verified";
   const now = new Date();
 
   return (
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
           <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">{formatLongDate(now)}</p>
         </div>
 
-        {data.user.verified ? (
+        {verified ? (
           <p className="flex items-center gap-2 rounded-full bg-[#E6F4EC] px-3 py-1 text-sm font-medium text-[#14693A] dark:bg-[#4CC38A]/15 dark:text-[#4CC38A]">
             <ShieldCheck className="size-4" aria-hidden="true" />
             Verified
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
         )}
       </header>
 
-      {!data.user.verified && (
+      {!verified && (
         <div
           role="status"
           className="flex flex-col gap-4 rounded-2xl border border-[#F2B632]/60 bg-[#FFF8E1] p-5 dark:border-[#F2B632]/30 dark:bg-[#F2B632]/10 sm:flex-row sm:items-center sm:justify-between"
