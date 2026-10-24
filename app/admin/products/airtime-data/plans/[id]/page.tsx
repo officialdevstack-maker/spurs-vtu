@@ -40,6 +40,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
         network={context.network}
         types={context.types}
         providers={context.providers}
+        packages={context.packages}
         plan={found.plan}
       />
     </div>

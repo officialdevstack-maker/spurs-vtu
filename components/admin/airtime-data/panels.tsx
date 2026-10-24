@@ -433,7 +433,14 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
                         )}
                       </td>
                       <td className={`${td} text-right tabular-nums`}>{formatNaira(plan.cost)}</td>
-                      <td className={`${td} text-right font-medium tabular-nums`}>{formatNaira(plan.price)}</td>
+                      <td className={`${td} text-right`}>
+                        <p className="font-medium tabular-nums">{formatNaira(plan.price)}</p>
+                        {(plan.packagePrices?.length ?? 0) > 0 && (
+                          <p className="text-xs text-gray-600 dark:text-[#9FB3B7]">
+                            +{plan.packagePrices.length} package {plan.packagePrices.length === 1 ? "price" : "prices"}
+                          </p>
+                        )}
+                      </td>
                       <td className={td}>
                         <div className="flex items-center justify-end gap-3">
                           <OnOff on={plan.active} />

@@ -35,6 +35,17 @@ export type AirtimeDiscount = {
 
 export type ProviderOption = { id: string; name: string };
 
+export type PriceMode = "fixed" | "percent";
+
+/** A package's own selling price. fixed = naira amount, percent = discount off the standard price. */
+export type PackagePrice = { packageId: string; mode: PriceMode; value: number };
+
+export type PackageOption = { id: string; name: string };
+
+/** What a package pays for a plan whose standard selling price is `price`. */
+export const resolvePackagePrice = (price: number, mode: PriceMode, value: number) =>
+  mode === "fixed" ? value : Math.round(price * (1 - value / 100) * 100) / 100;
+
 export type DataPlan = {
   id: string;
   type: DataType;
@@ -47,6 +58,8 @@ export type DataPlan = {
   cost: number;
   /** What the customer pays */
   price: number;
+  /** Per-package selling prices. A package not listed pays `price`. */
+  packagePrices: PackagePrice[];
   /** Provider that fulfils this plan. null means any provider by priority. */
   providerId: string | null;
   providerName: string | null;

@@ -108,7 +108,7 @@ function parseProvider(input: unknown, isNew: boolean): ProviderFields | string 
 }
 
 export async function createProvider(input: ProviderFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   const provider = parseProvider(input, true);
   if (typeof provider === "string") return fail(provider);
   const id = slugify(provider.name);
@@ -116,7 +116,7 @@ export async function createProvider(input: ProviderFields): Promise<ActionResul
 }
 
 export async function updateProvider(id: string, input: ProviderFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   const provider = parseProvider(input, false);
   if (!id) return BAD_INPUT;
   if (typeof provider === "string") return fail(provider);
@@ -124,13 +124,13 @@ export async function updateProvider(id: string, input: ProviderFields): Promise
 }
 
 export async function setProviderEnabled(id: string, enabled: boolean): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   if (!id || typeof enabled !== "boolean") return BAD_INPUT;
   return run(() => db.setProviderEnabled(id, enabled));
 }
 
 export async function removeProvider(id: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   if (!id) return BAD_INPUT;
   return run(() => db.deleteProvider(id));
 }
@@ -158,7 +158,7 @@ function parseEndpoint(input: unknown): EndpointFields | string {
 }
 
 export async function saveEndpoint(providerId: string, input: EndpointFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   const endpoint = parseEndpoint(input);
   if (!providerId) return BAD_INPUT;
   if (typeof endpoint === "string") return fail(endpoint);
@@ -170,13 +170,13 @@ export async function setEndpointActive(
   endpointId: string,
   active: boolean,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   if (!providerId || !endpointId || typeof active !== "boolean") return BAD_INPUT;
   return run(() => db.setEndpointActive(providerId, endpointId, active));
 }
 
 export async function removeEndpoint(providerId: string, endpointId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("gateways.manage");
   if (!providerId || !endpointId) return BAD_INPUT;
   return run(() => db.deleteEndpoint(providerId, endpointId));
 }

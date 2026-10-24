@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db";
 import type {
   AirtimeDataProducts,
@@ -8,11 +9,14 @@ import type {
   DataTypeOption,
   DataUnit,
   NetworkProduct,
+  PackageOption,
+  PackagePrice,
   PinStock,
+  PriceMode,
   ProviderOption,
   Service,
 } from "@/lib/admin/airtime-data";
-import { formatVolume } from "@/lib/admin/airtime-data";
+import { formatVolume, resolvePackagePrice } from "@/lib/admin/airtime-data";
 
 export type PlanFields = {
   type: string;
@@ -21,6 +25,7 @@ export type PlanFields = {
   validity: string;
   cost: number;
   price: number;
+  packagePrices: PackagePrice[];
   providerId: string | null;
   providerPlanId: string;
   active: boolean;
@@ -53,6 +58,8 @@ type PlanRow = {
   provider_plan_id: string;
   active: boolean;
 };
+type PackagePriceRow = { plan_id: string; package_id: string; mode: PriceMode; value: string };
+
 type DiscountRow = {
   id: string;
   network_id: string;
@@ -93,7 +100,13 @@ function group<T extends { network_id: string }>(rows: T[]) {
   return map;
 }
 
-const toPlan = (r: PlanRow): DataPlan => ({
+const toPackagePrice = (r: PackagePriceRow): PackagePrice => ({
+  packageId: r.package_id,
+  mode: r.mode,
+  value: Number(r.value),
+});
+
+const toPlan = (r: PlanRow, packagePrices: PackagePrice[] = []): DataPlan => ({
   id: r.id,
   type: r.type_id,
   size: r.size,
@@ -102,6 +115,7 @@ const toPlan = (r: PlanRow): DataPlan => ({
   validity: r.validity,
   cost: Number(r.cost),
   price: Number(r.price),
+  packagePrices,
   providerId: r.provider_id,
   providerName: r.provider_name,
   providerPlanId: r.provider_plan_id,
@@ -132,7 +146,7 @@ const changed = (r: { rowCount: number | null }) => (r.rowCount ?? 0) > 0;
 
 export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
   const pool = getPool();
-  const [networks, types, enabled, plans, discounts, pins] = await Promise.all([
+  const [networks, types, enabled, plans, discounts, pins, packagePrices] = await Promise.all([
     pool.query<NetworkRow>("select id, name, enabled from networks order by sort_order, name"),
     pool.query<TypeRow>("select id, label, service from data_types order by service, created_at, label"),
     pool.query<{ network_id: string; type_id: string }>("select network_id, type_id from network_data_types where enabled"),
@@ -145,12 +159,19 @@ export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
        order by d.type_id, d.min_amount`,
     ),
     pool.query<PinRow>("select id, network_id, kind, label, price, available, used from pin_stock order by price"),
+    pool.query<PackagePriceRow>("select plan_id, package_id, mode, value from data_plan_package_prices"),
   ]);
 
   const enabledByNetwork = group(enabled.rows);
   const plansByNetwork = group(plans.rows);
   const discountsByNetwork = group(discounts.rows);
   const pinsByNetwork = group(pins.rows);
+  const pricesByPlan = new Map<string, PackagePrice[]>();
+  for (const row of packagePrices.rows) {
+    const list = pricesByPlan.get(row.plan_id) ?? [];
+    list.push(toPackagePrice(row));
+    pricesByPlan.set(row.plan_id, list);
+  }
 
   const products: NetworkProduct[] = networks.rows.map((n) => {
     const networkPins = pinsByNetwork.get(n.id) ?? [];
@@ -159,7 +180,7 @@ export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
       name: n.name,
       enabled: n.enabled,
       enabledTypes: (enabledByNetwork.get(n.id) ?? []).map((r) => r.type_id),
-      plans: (plansByNetwork.get(n.id) ?? []).map(toPlan),
+      plans: (plansByNetwork.get(n.id) ?? []).map((plan) => toPlan(plan, pricesByPlan.get(plan.id) ?? [])),
       discounts: (discountsByNetwork.get(n.id) ?? []).map(toDiscount),
       airtimePins: networkPins.filter((p) => p.kind === "airtime").map(toPin),
       dataPins: networkPins.filter((p) => p.kind === "data").map(toPin),
@@ -250,15 +271,29 @@ async function checkPlan(plan: PlanFields) {
   }
 }
 
+async function writePackagePrices(client: PoolClient, planId: string, prices: PackagePrice[]) {
+  await client.query("delete from data_plan_package_prices where plan_id = $1", [planId]);
+  if (prices.length === 0) return;
+  await client.query(
+    `insert into data_plan_package_prices (plan_id, package_id, mode, value)
+     select $1, t.package_id, t.mode, t.value
+     from unnest($2::text[], $3::text[], $4::numeric[]) as t(package_id, mode, value)`,
+    [planId, prices.map((p) => p.packageId), prices.map((p) => p.mode), prices.map((p) => p.value)],
+  );
+}
+
 export async function createPlan(network: string, p: PlanFields) {
   await checkPlan(p);
-  return changed(
-    await getPool().query(
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const id = randomUUID();
+    const result = await client.query(
       `insert into data_plans
          (id, network_id, type_id, size, volume, unit, validity, cost, price, provider_id, provider_plan_id, active)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
-        randomUUID(),
+        id,
         network,
         p.type,
         formatVolume(p.volume, p.unit),
@@ -271,14 +306,24 @@ export async function createPlan(network: string, p: PlanFields) {
         p.providerPlanId,
         p.active,
       ],
-    ),
-  );
+    );
+    await writePackagePrices(client, id, p.packagePrices);
+    await client.query("commit");
+    return changed(result);
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updatePlan(network: string, planId: string, p: PlanFields) {
   await checkPlan(p);
-  return changed(
-    await getPool().query(
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(
       `update data_plans
        set type_id = $3, size = $4, volume = $5, unit = $6, validity = $7, cost = $8, price = $9,
            provider_id = $10, provider_plan_id = $11, active = $12
@@ -297,19 +342,31 @@ export async function updatePlan(network: string, planId: string, p: PlanFields)
         p.providerPlanId,
         p.active,
       ],
-    ),
-  );
+    );
+    await writePackagePrices(client, planId, p.packagePrices);
+    await client.query("commit");
+    return changed(result);
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getPlan(id: string): Promise<{ networkId: string; plan: DataPlan } | null> {
-  const { rows } = await getPool().query<PlanRow>(`${PLAN_SELECT} where p.id = $1`, [id]);
-  const row = rows[0];
-  return row ? { networkId: row.network_id, plan: toPlan(row) } : null;
+  const pool = getPool();
+  const [plans, prices] = await Promise.all([
+    pool.query<PlanRow>(`${PLAN_SELECT} where p.id = $1`, [id]),
+    pool.query<PackagePriceRow>("select plan_id, package_id, mode, value from data_plan_package_prices where plan_id = $1", [id]),
+  ]);
+  const row = plans.rows[0];
+  return row ? { networkId: row.network_id, plan: toPlan(row, prices.rows.map(toPackagePrice)) } : null;
 }
 
 export async function getPlanFormContext(networkId: string, includeType?: string, includeProvider?: string) {
   const pool = getPool();
-  const [network, types, providers] = await Promise.all([
+  const [network, types, providers, packages] = await Promise.all([
     pool.query<{ id: string; name: string }>("select id, name from networks where id = $1", [networkId]),
     pool.query<TypeRow>(
       `select t.id, t.label, t.service
@@ -328,10 +385,35 @@ export async function getPlanFormContext(networkId: string, includeType?: string
        order by p.priority, p.name`,
       [includeProvider ?? null],
     ),
+    pool.query<PackageOption>("select id, name from packages order by sort_order, name"),
   ]);
   const found = network.rows[0];
   if (!found) return null;
-  return { network: found, types: types.rows, providers: providers.rows };
+  const options: DataTypeOption[] = types.rows;
+  return { network: found, types: options, providers: providers.rows, packages: packages.rows };
+}
+
+/** What a customer on `packageId` pays for an active plan. null if the plan doesn't exist or is off. */
+export async function getPlanPriceForPackage(planId: string, packageId: string): Promise<number | null> {
+  const { rows } = await getPool().query<{ price: string; mode: PriceMode | null; value: string | null }>(
+    `select p.price, pp.mode, pp.value
+     from data_plans p
+     left join data_plan_package_prices pp on pp.plan_id = p.id and pp.package_id = $2
+     where p.id = $1 and p.active`,
+    [planId, packageId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const price = Number(row.price);
+  return row.mode && row.value !== null ? resolvePackagePrice(price, row.mode, Number(row.value)) : price;
+}
+
+export async function getCustomerPackageId(customerId: string): Promise<string> {
+  const { rows } = await getPool().query<{ package_id: string }>(
+    "select package_id from customers where id = $1",
+    [customerId],
+  );
+  return rows[0]?.package_id ?? "basic";
 }
 
 export async function setPlanActive(network: string, planId: string, active: boolean) {

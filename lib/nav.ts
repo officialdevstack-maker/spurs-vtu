@@ -1,7 +1,6 @@
 import {
   Gift,
   LayoutDashboard,
-  LayoutGrid,
   Receipt,
   Smartphone,
   Tv,

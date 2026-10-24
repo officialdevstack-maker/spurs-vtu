@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { RolesManager } from "@/components/admin/roles/manager";
+import { requirePermission } from "@/lib/admin/auth";
+import { listRoles, listStaff } from "@/lib/db/roles";
 
 export const metadata: Metadata = { title: "Roles & permissions | Spur VTU" };
 
-export default function RolesPage() {
+export default async function RolesPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  await connection();
+  await requirePermission("roles.manage");
+  const { tab } = await searchParams;
+  const [roles, staff] = await Promise.all([listRoles(), listStaff()]);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
@@ -13,13 +22,7 @@ export default function RolesPage() {
           Control what each role can see and do in the admin area.
         </p>
       </header>
-
-      <section className="rounded-2xl border border-gray-200 bg-gray-100 p-6 dark:border-white/10 dark:bg-white/5">
-        <h2 className="font-semibold">Roles and permissions are coming soon</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
-          Create roles, choose their permissions and assign them to staff here.
-        </p>
-      </section>
+      <RolesManager roles={roles} staff={staff} initialTab={tab === "staff" ? "staff" : "roles"} />
     </div>
   );
 }

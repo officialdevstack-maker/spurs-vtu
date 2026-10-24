@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
-import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type Service } from "@/lib/admin/airtime-data";
+import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type PackagePrice, type Service } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
 
@@ -43,7 +43,7 @@ async function run(
 }
 
 export async function createNetwork(name: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const label = clean(name);
   const id = slugify(label);
   if (!label || label.length > 40 || !id) {
@@ -53,26 +53,26 @@ export async function createNetwork(name: string): Promise<ActionResult> {
 }
 
 export async function renameNetwork(network: string, name: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const label = clean(name);
   if (!network || !label || label.length > 40) return fail("Enter a network name up to 40 characters.");
   return run(() => db.renameNetwork(network, label));
 }
 
 export async function setNetworkEnabled(network: string, enabled: boolean): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || typeof enabled !== "boolean") return BAD_INPUT;
   return run(() => db.setNetworkEnabled(network, enabled));
 }
 
 export async function removeNetwork(network: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network) return BAD_INPUT;
   return run(() => db.deleteNetwork(network));
 }
 
 export async function createDataType(label: string, service: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const name = clean(label);
   const slug = slugify(name);
   if (!validService(service)) return fail("Choose airtime or data.");
@@ -84,14 +84,14 @@ export async function createDataType(label: string, service: string): Promise<Ac
 }
 
 export async function renameDataType(type: string, label: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const name = clean(label);
   if (!type || !name || name.length > 20) return fail("Enter a type name up to 20 characters.");
   return run(() => db.renameDataType(type, name));
 }
 
 export async function removeDataType(type: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!type) return BAD_INPUT;
   return run(() => db.deleteDataType(type), {
     fk: "Plans or discounts still use this type. Remove or change those first.",
@@ -103,7 +103,7 @@ export async function setNetworkTypeEnabled(
   type: string,
   enabled: boolean,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || !type || typeof enabled !== "boolean") return BAD_INPUT;
   return run(() => db.setNetworkTypeEnabled(network, type, enabled), {
     fk: "That network or type no longer exists. Refresh the page.",
@@ -121,6 +121,8 @@ function parsePlan(input: unknown): PlanFields | null {
   if (plan.providerId !== null && typeof plan.providerId !== "string") return null;
   const providerId = plan.providerId?.trim() || null;
   if (providerId && !providerPlanId) return null;
+  const packagePrices = parsePackagePrices(plan.packagePrices);
+  if (!packagePrices) return null;
   if (
     typeof plan.volume !== "number" ||
     !Number.isFinite(plan.volume) ||
@@ -145,36 +147,62 @@ function parsePlan(input: unknown): PlanFields | null {
     validity,
     cost: round2(plan.cost),
     price: round2(plan.price),
+    packagePrices,
     providerId,
     providerPlanId,
     active: plan.active,
   };
 }
 
-const PLAN_FK = "That network, type, or provider no longer exists. Refresh the page.";
+const PLAN_FK = "That network, type or package no longer exists. Refresh the page.";
+
+function parsePackagePrices(input: unknown): PackagePrice[] | null {
+  if (input === undefined) return [];
+  if (!Array.isArray(input) || input.length > 50) return null;
+
+  const seen = new Set<string>();
+  const result: PackagePrice[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") return null;
+    const { packageId, mode, value } = item as Partial<PackagePrice>;
+    if (typeof packageId !== "string" || !packageId || seen.has(packageId)) return null;
+    if (mode !== "fixed" && mode !== "percent") return null;
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > (mode === "percent" ? 100 : 10_000_000)
+    ) {
+      return null;
+    }
+    seen.add(packageId);
+    result.push({ packageId, mode, value: round2(value) });
+  }
+  return result;
+}
 
 export async function createPlan(network: string, input: PlanFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!network || !plan) return fail("Check the plan details and try again.");
   return run(() => db.createPlan(network, plan), { fk: PLAN_FK });
 }
 
 export async function updatePlan(network: string, planId: string, input: PlanFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!network || !planId || !plan) return fail("Check the plan details and try again.");
   return run(() => db.updatePlan(network, planId, plan), { fk: PLAN_FK });
 }
 
 export async function setPlanActive(network: string, planId: string, active: boolean): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || !planId || typeof active !== "boolean") return BAD_INPUT;
   return run(() => db.setPlanActive(network, planId, active));
 }
 
 export async function removePlan(network: string, planId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || !planId) return BAD_INPUT;
   return run(() => db.deletePlan(network, planId));
 }
@@ -228,27 +256,27 @@ const DISCOUNT_BAD = fail("Check the discount details and try again.");
 const DISCOUNT_FK = "That network, type, or provider no longer exists. Refresh the page.";
 
 export async function createDiscount(network: string, input: DiscountFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const discount = parseDiscount(input);
   if (!network || !discount) return DISCOUNT_BAD;
   return run(() => db.createDiscount(network, discount), { fk: DISCOUNT_FK });
 }
 
 export async function updateDiscount(network: string, id: string, input: DiscountFields): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   const discount = parseDiscount(input);
   if (!network || !id || !discount) return DISCOUNT_BAD;
   return run(() => db.updateDiscount(network, id, discount), { fk: DISCOUNT_FK });
 }
 
 export async function setDiscountActive(network: string, id: string, active: boolean): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || !id || typeof active !== "boolean") return BAD_INPUT;
   return run(() => db.setDiscountActive(network, id, active));
 }
 
 export async function removeDiscount(network: string, id: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("products.manage");
   if (!network || !id) return BAD_INPUT;
   return run(() => db.deleteDiscount(network, id));
 }

@@ -37,7 +37,13 @@ export default async function NewPlanPage({
         <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">Create a data plan for {context.network.name}.</p>
       </header>
 
-      <PlanForm network={context.network} types={context.types} providers={context.providers} defaultType={type} />
+      <PlanForm
+        network={context.network}
+        types={context.types}
+        providers={context.providers}
+        packages={context.packages}
+        defaultType={type}
+      />
     </div>
   );
 }
