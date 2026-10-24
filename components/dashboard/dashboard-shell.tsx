@@ -13,6 +13,7 @@ export function DashboardShell({
   unreadCount,
   nav,
   brandSuffix,
+  modeSwitch,
   showNotifications,
   children,
 }: {
@@ -20,6 +21,7 @@ export function DashboardShell({
   unreadCount?: number;
   nav?: NavGroup[];
   brandSuffix?: string;
+  modeSwitch?: { href: string; label: string };
   showNotifications?: boolean;
   children: ReactNode;
 }) {
@@ -104,6 +106,7 @@ export function DashboardShell({
         unreadCount={unreadCount}
         nav={nav}
         brandSuffix={brandSuffix}
+        modeSwitch={modeSwitch}
         showNotifications={showNotifications}
         open={open}
         collapsed={collapsed}

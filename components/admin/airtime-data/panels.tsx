@@ -9,7 +9,9 @@ import { formatNaira } from "@/lib/format";
 import {
   SERVICES,
   editDiscountUrl,
+  editPlanUrl,
   newDiscountUrl,
+  newPlanUrl,
   typeLabel,
   type AirtimeDiscount,
   type DataPlan,
@@ -19,7 +21,6 @@ import {
 } from "@/lib/admin/airtime-data";
 import {
   createDataType,
-  createPlan,
   removeDataType,
   removeDiscount,
   removePlan,
@@ -27,10 +28,9 @@ import {
   setDiscountActive,
   setNetworkTypeEnabled,
   setPlanActive,
-  updatePlan,
   type ActionResult,
 } from "@/app/admin/products/airtime-data/actions";
-import { ConfirmDialog, NameDialog, PlanDialog } from "./dialogs";
+import { ConfirmDialog, NameDialog } from "./dialogs";
 import { TypeDialog } from "./type-dialog";
 
 /** Applies a change on screen right away, runs the server action, and rolls back if it fails. */
@@ -343,17 +343,10 @@ export function DiscountsPanel({ network, types, commit }: PanelProps) {
   );
 }
 
-type PlanDialogState =
-  | { kind: "add" }
-  | { kind: "edit"; plan: DataPlan }
-  | { kind: "delete"; plan: DataPlan }
-  | null;
-
 export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps) {
   const types = allTypes.filter((type) => type.service === "data");
   const [filter, setFilter] = useState("all");
-  const [dialog, setDialog] = useState<PlanDialogState>(null);
-  const close = () => setDialog(null);
+  const [deleting, setDeleting] = useState<DataPlan | null>(null);
   const activeFilter = filter === "all" || types.some((type) => type.id === filter) ? filter : "all";
   const visible = activeFilter === "all" ? network.plans : network.plans.filter((plan) => plan.type === activeFilter);
 
@@ -374,15 +367,20 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
           </h3>
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Turn a plan off to hide it from customers.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setDialog({ kind: "add" })}
-          disabled={types.length === 0}
-          className={`${btnPrimary} inline-flex shrink-0 items-center gap-2`}
-        >
-          <Plus className="size-5" aria-hidden="true" />
-          Add plan
-        </button>
+        {types.length === 0 ? (
+          <button type="button" disabled className={`${btnPrimary} inline-flex shrink-0 items-center gap-2`}>
+            <Plus className="size-5" aria-hidden="true" />
+            Add plan
+          </button>
+        ) : (
+          <Link
+            href={newPlanUrl(network.id, activeFilter === "all" ? undefined : activeFilter)}
+            className={`${btnPrimary} inline-flex shrink-0 items-center gap-2`}
+          >
+            <Plus className="size-5" aria-hidden="true" />
+            Add plan
+          </Link>
+        )}
       </div>
       {types.length === 0 && (
         <p className="mb-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
@@ -398,11 +396,12 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
           />
         ) : (
           <div className={tableWrap}>
-            <table className="w-full min-w-[40rem] text-sm">
+            <table className="w-full min-w-[48rem] text-sm">
               <thead className="border-b border-gray-200 dark:border-white/10">
                 <tr>
                   <th scope="col" className={th}>Plan</th>
                   <th scope="col" className={th}>Type</th>
+                  <th scope="col" className={th}>Provider</th>
                   <th scope="col" className={`${th} text-right`}>Cost</th>
                   <th scope="col" className={`${th} text-right`}>Price</th>
                   <th scope="col" className={`${th} text-right`}>Active</th>
@@ -412,94 +411,86 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
                 </tr>
               </thead>
               <tbody className={tableBody}>
-                {visible.map((plan) => (
-                  <tr key={plan.id}>
-                    <td className={td}>
-                      <p className="font-medium">{plan.size}</p>
-                      <p className="text-gray-600 dark:text-[#9FB3B7]">{plan.validity}</p>
-                    </td>
-                    <td className={td}>
-                      <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold dark:bg-white/10">
-                        {typeLabel(types, plan.type)}
-                      </span>
-                    </td>
-                    <td className={`${td} text-right tabular-nums`}>{formatNaira(plan.cost)}</td>
-                    <td className={`${td} text-right font-medium tabular-nums`}>{formatNaira(plan.price)}</td>
-                    <td className={td}>
-                      <div className="flex items-center justify-end gap-3">
-                        <OnOff on={plan.active} />
-                        <Switch
-                          checked={plan.active}
-                          label={`${plan.size} ${typeLabel(types, plan.type)} plan on ${network.name}`}
-                          onChange={(next) =>
-                            commit(
-                              {
-                                ...network,
-                                plans: network.plans.map((item) =>
-                                  item.id === plan.id ? { ...item, active: next } : item,
-                                ),
-                              },
-                              () => setPlanActive(network.id, plan.id, next),
-                            )
-                          }
-                        />
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setDialog({ kind: "edit", plan })}
-                          aria-label={`Edit ${plan.size} ${typeLabel(types, plan.type)} plan`}
-                          title="Edit"
-                          className={btnIcon}
-                        >
-                          <Pencil className="size-4" aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDialog({ kind: "delete", plan })}
-                          aria-label={`Delete ${plan.size} ${typeLabel(types, plan.type)} plan`}
-                          title="Delete"
-                          className={btnIcon}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {visible.map((plan) => {
+                  const label = `${plan.size} ${typeLabel(types, plan.type)} plan`;
+                  return (
+                    <tr key={plan.id}>
+                      <td className={td}>
+                        <p className="font-medium">{plan.size}</p>
+                        <p className="text-gray-600 dark:text-[#9FB3B7]">{plan.validity}</p>
+                      </td>
+                      <td className={td}>
+                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold dark:bg-white/10">
+                          {typeLabel(types, plan.type)}
+                        </span>
+                      </td>
+                      <td className={td}>
+                        <p>{plan.providerName ?? "Any provider"}</p>
+                        {plan.providerPlanId && (
+                          <p className="font-[family-name:var(--font-geist-mono)] text-xs text-gray-600 dark:text-[#9FB3B7]">
+                            ID {plan.providerPlanId}
+                          </p>
+                        )}
+                      </td>
+                      <td className={`${td} text-right tabular-nums`}>{formatNaira(plan.cost)}</td>
+                      <td className={`${td} text-right font-medium tabular-nums`}>{formatNaira(plan.price)}</td>
+                      <td className={td}>
+                        <div className="flex items-center justify-end gap-3">
+                          <OnOff on={plan.active} />
+                          <Switch
+                            checked={plan.active}
+                            label={`${plan.size} ${typeLabel(types, plan.type)} plan on ${network.name}`}
+                            onChange={(next) =>
+                              commit(
+                                {
+                                  ...network,
+                                  plans: network.plans.map((item) =>
+                                    item.id === plan.id ? { ...item, active: next } : item,
+                                  ),
+                                },
+                                () => setPlanActive(network.id, plan.id, next),
+                              )
+                            }
+                          />
+                        </div>
+                      </td>
+                      <td className={td}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={editPlanUrl(plan.id)}
+                            aria-label={`Edit ${label}`}
+                            title="Edit"
+                            className={btnIcon}
+                          >
+                            <Pencil className="size-4" aria-hidden="true" />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(plan)}
+                            aria-label={`Delete ${label}`}
+                            title="Delete"
+                            className={btnIcon}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Tabs>
 
-      {dialog?.kind === "add" && (
-        <PlanDialog
-          networkName={network.name}
-          types={types}
-          defaultType={activeFilter === "all" ? undefined : activeFilter}
-          onClose={close}
-          onSubmit={(input) => createPlan(network.id, input)}
-        />
-      )}
-      {dialog?.kind === "edit" && (
-        <PlanDialog
-          networkName={network.name}
-          types={types}
-          plan={dialog.plan}
-          onClose={close}
-          onSubmit={(input) => updatePlan(network.id, dialog.plan.id, input)}
-        />
-      )}
-      {dialog?.kind === "delete" && (
+      {deleting && (
         <ConfirmDialog
-          title={`Delete ${dialog.plan.size} plan?`}
-          text={`This removes the ${dialog.plan.size} ${typeLabel(types, dialog.plan.type)} plan from ${network.name}. To hide it temporarily, switch it off instead.`}
+          title={`Delete ${deleting.size} plan?`}
+          text={`This removes the ${deleting.size} ${typeLabel(types, deleting.type)} plan from ${network.name}. To hide it temporarily, switch it off instead.`}
           confirmLabel="Delete plan"
-          onClose={close}
-          onConfirm={() => removePlan(network.id, dialog.plan.id)}
+          onClose={() => setDeleting(null)}
+          onConfirm={() => removePlan(network.id, deleting.id)}
         />
       )}
     </section>

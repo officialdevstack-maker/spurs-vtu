@@ -6,18 +6,23 @@ import type {
   AirtimeDiscount,
   DataPlan,
   DataTypeOption,
+  DataUnit,
   NetworkProduct,
   PinStock,
   ProviderOption,
   Service,
 } from "@/lib/admin/airtime-data";
+import { formatVolume } from "@/lib/admin/airtime-data";
 
 export type PlanFields = {
   type: string;
-  size: string;
+  volume: number;
+  unit: DataUnit;
   validity: string;
   cost: number;
   price: number;
+  providerId: string | null;
+  providerPlanId: string;
   active: boolean;
 };
 
@@ -38,9 +43,14 @@ type PlanRow = {
   network_id: string;
   type_id: string;
   size: string;
+  volume: string | null;
+  unit: DataUnit | null;
   validity: string;
   cost: string;
   price: string;
+  provider_id: string | null;
+  provider_name: string | null;
+  provider_plan_id: string;
   active: boolean;
 };
 type DiscountRow = {
@@ -68,6 +78,11 @@ type PinRow = {
 const dbFail = (code: "OVERLAP" | "BAD_AIRTIME_TYPE" | "BAD_DATA_TYPE" | "BAD_PROVIDER") =>
   Object.assign(new Error(code), { code });
 
+const PLAN_SELECT = `select p.id, p.network_id, p.type_id, p.size, p.volume, p.unit, p.validity, p.cost, p.price,
+       p.provider_id, pr.name as provider_name, p.provider_plan_id, p.active
+     from data_plans p
+     left join providers pr on pr.id = p.provider_id`;
+
 function group<T extends { network_id: string }>(rows: T[]) {
   const map = new Map<string, T[]>();
   for (const row of rows) {
@@ -82,9 +97,14 @@ const toPlan = (r: PlanRow): DataPlan => ({
   id: r.id,
   type: r.type_id,
   size: r.size,
+  volume: r.volume === null ? 0 : Number(r.volume),
+  unit: r.unit ?? "mb",
   validity: r.validity,
   cost: Number(r.cost),
   price: Number(r.price),
+  providerId: r.provider_id,
+  providerName: r.provider_name,
+  providerPlanId: r.provider_plan_id,
   active: r.active,
 });
 
@@ -116,7 +136,7 @@ export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
     pool.query<NetworkRow>("select id, name, enabled from networks order by sort_order, name"),
     pool.query<TypeRow>("select id, label, service from data_types order by service, created_at, label"),
     pool.query<{ network_id: string; type_id: string }>("select network_id, type_id from network_data_types where enabled"),
-    pool.query<PlanRow>("select id, network_id, type_id, size, validity, cost, price, active from data_plans order by cost, size"),
+    pool.query<PlanRow>(`${PLAN_SELECT} order by p.cost, p.size`),
     pool.query<DiscountRow>(
       `select d.id, d.network_id, d.type_id, d.discount, d.min_amount, d.max_amount,
               d.provider_id, p.name as provider_name, d.provider_discount, d.active
@@ -214,31 +234,104 @@ export async function setNetworkTypeEnabled(network: string, type: string, enabl
   );
 }
 
-async function checkDataType(type: string) {
-  const result = await getPool().query("select 1 from data_types where id = $1 and service = 'data'", [type]);
-  if (!result.rowCount) throw dbFail("BAD_DATA_TYPE");
+async function checkPlan(plan: PlanFields) {
+  const pool = getPool();
+  const type = await pool.query("select 1 from data_types where id = $1 and service = 'data'", [plan.type]);
+  if (!type.rowCount) throw dbFail("BAD_DATA_TYPE");
+
+  if (plan.providerId) {
+    const provider = await pool.query(
+      `select 1 from providers p
+       join provider_endpoints e on e.provider_id = p.id and e.service = 'data'
+       where p.id = $1`,
+      [plan.providerId],
+    );
+    if (!provider.rowCount) throw dbFail("BAD_PROVIDER");
+  }
 }
 
 export async function createPlan(network: string, p: PlanFields) {
-  await checkDataType(p.type);
+  await checkPlan(p);
   return changed(
     await getPool().query(
-      `insert into data_plans (id, network_id, type_id, size, validity, cost, price, active)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [randomUUID(), network, p.type, p.size, p.validity, p.cost, p.price, p.active],
+      `insert into data_plans
+         (id, network_id, type_id, size, volume, unit, validity, cost, price, provider_id, provider_plan_id, active)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        randomUUID(),
+        network,
+        p.type,
+        formatVolume(p.volume, p.unit),
+        p.volume,
+        p.unit,
+        p.validity,
+        p.cost,
+        p.price,
+        p.providerId,
+        p.providerPlanId,
+        p.active,
+      ],
     ),
   );
 }
 
 export async function updatePlan(network: string, planId: string, p: PlanFields) {
-  await checkDataType(p.type);
+  await checkPlan(p);
   return changed(
     await getPool().query(
-      `update data_plans set type_id = $3, size = $4, validity = $5, cost = $6, price = $7, active = $8
+      `update data_plans
+       set type_id = $3, size = $4, volume = $5, unit = $6, validity = $7, cost = $8, price = $9,
+           provider_id = $10, provider_plan_id = $11, active = $12
        where id = $1 and network_id = $2`,
-      [planId, network, p.type, p.size, p.validity, p.cost, p.price, p.active],
+      [
+        planId,
+        network,
+        p.type,
+        formatVolume(p.volume, p.unit),
+        p.volume,
+        p.unit,
+        p.validity,
+        p.cost,
+        p.price,
+        p.providerId,
+        p.providerPlanId,
+        p.active,
+      ],
     ),
   );
+}
+
+export async function getPlan(id: string): Promise<{ networkId: string; plan: DataPlan } | null> {
+  const { rows } = await getPool().query<PlanRow>(`${PLAN_SELECT} where p.id = $1`, [id]);
+  const row = rows[0];
+  return row ? { networkId: row.network_id, plan: toPlan(row) } : null;
+}
+
+export async function getPlanFormContext(networkId: string, includeType?: string, includeProvider?: string) {
+  const pool = getPool();
+  const [network, types, providers] = await Promise.all([
+    pool.query<{ id: string; name: string }>("select id, name from networks where id = $1", [networkId]),
+    pool.query<TypeRow>(
+      `select t.id, t.label, t.service
+       from data_types t
+       left join network_data_types nt on nt.type_id = t.id and nt.network_id = $1
+       where t.service = 'data' and (coalesce(nt.enabled, false) or t.id = $2)
+       order by t.created_at, t.label`,
+      [networkId, includeType ?? null],
+    ),
+    pool.query<ProviderOption>(
+      `select p.id, p.name from providers p
+       where (p.enabled and exists (
+               select 1 from provider_endpoints e
+               where e.provider_id = p.id and e.service = 'data' and e.active))
+          or p.id = $1
+       order by p.priority, p.name`,
+      [includeProvider ?? null],
+    ),
+  ]);
+  const found = network.rows[0];
+  if (!found) return null;
+  return { network: found, types: types.rows, providers: providers.rows };
 }
 
 export async function setPlanActive(network: string, planId: string, active: boolean) {

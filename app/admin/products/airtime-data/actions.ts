@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import { AIRTIME_DATA_PATH, SERVICES, slugify, type Service } from "@/lib/admin/airtime-data";
+import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type Service } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
 
@@ -24,7 +24,7 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
   if (code === "OVERLAP") return fail("That amount range overlaps another discount for this network and type.");
   if (code === "BAD_AIRTIME_TYPE") return fail("Pick an airtime network type.");
   if (code === "BAD_DATA_TYPE") return fail("Pick a data network type.");
-  if (code === "BAD_PROVIDER") return fail("Pick a provider that has an airtime endpoint, or choose any provider.");
+  if (code === "BAD_PROVIDER") return fail("Pick a provider that has an endpoint for this service, or choose any provider.");
   console.error("[airtime-data]", error);
   return fail("Something went wrong saving that. Try again.");
 }
@@ -114,10 +114,18 @@ function parsePlan(input: unknown): PlanFields | null {
   if (!input || typeof input !== "object") return null;
   const plan = input as Partial<PlanFields>;
   const type = clean(plan.type);
-  const size = clean(plan.size);
   const validity = clean(plan.validity);
-  if (!type || !size || size.length > 30 || !validity || validity.length > 30) return null;
+  const providerPlanId = clean(plan.providerPlanId);
+  const unit: DataUnit | null = plan.unit === "mb" || plan.unit === "gb" ? plan.unit : null;
+  if (!type || !unit || !validity || validity.length > 30 || providerPlanId.length > 100) return null;
+  if (plan.providerId !== null && typeof plan.providerId !== "string") return null;
+  const providerId = plan.providerId?.trim() || null;
+  if (providerId && !providerPlanId) return null;
   if (
+    typeof plan.volume !== "number" ||
+    !Number.isFinite(plan.volume) ||
+    plan.volume <= 0 ||
+    plan.volume > 100_000 ||
     typeof plan.cost !== "number" ||
     !Number.isFinite(plan.cost) ||
     plan.cost < 0 ||
@@ -132,15 +140,18 @@ function parsePlan(input: unknown): PlanFields | null {
   }
   return {
     type,
-    size,
+    volume: round2(plan.volume),
+    unit,
     validity,
     cost: round2(plan.cost),
     price: round2(plan.price),
+    providerId,
+    providerPlanId,
     active: plan.active,
   };
 }
 
-const PLAN_FK = "That network or type no longer exists. Refresh the page.";
+const PLAN_FK = "That network, type, or provider no longer exists. Refresh the page.";
 
 export async function createPlan(network: string, input: PlanFields): Promise<ActionResult> {
   await requireAdmin();

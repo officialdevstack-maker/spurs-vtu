@@ -2,6 +2,14 @@
 export type NetworkId = string;
 export type DataType = string;
 export type Service = "airtime" | "data";
+export type DataUnit = "mb" | "gb";
+
+export const DATA_UNITS: { id: DataUnit; label: string }[] = [
+  { id: "mb", label: "MB" },
+  { id: "gb", label: "GB" },
+];
+
+export const formatVolume = (volume: number, unit: DataUnit) => `${Number(volume)}${unit.toUpperCase()}`;
 
 export const SERVICES: { id: Service; label: string }[] = [
   { id: "airtime", label: "Airtime" },
@@ -30,12 +38,20 @@ export type ProviderOption = { id: string; name: string };
 export type DataPlan = {
   id: string;
   type: DataType;
+  /** Display text built from volume and unit, e.g. "2GB". */
   size: string;
+  volume: number;
+  unit: DataUnit;
   validity: string;
   /** What you pay the provider */
   cost: number;
   /** What the customer pays */
   price: number;
+  /** Provider that fulfils this plan. null means any provider by priority. */
+  providerId: string | null;
+  providerName: string | null;
+  /** The provider's own ID for this plan, sent as {plan}. */
+  providerPlanId: string;
   active: boolean;
 };
 
@@ -66,6 +82,11 @@ export const discountsUrl = (network: string) =>
 export const newDiscountUrl = (network: string) =>
   `${AIRTIME_DATA_PATH}/discounts/new?network=${encodeURIComponent(network)}`;
 export const editDiscountUrl = (id: string) => `${AIRTIME_DATA_PATH}/discounts/${encodeURIComponent(id)}`;
+export const plansUrl = (network: string) =>
+  `${AIRTIME_DATA_PATH}?network=${encodeURIComponent(network)}&tab=plans`;
+export const newPlanUrl = (network: string, type?: string) =>
+  `${AIRTIME_DATA_PATH}/plans/new?network=${encodeURIComponent(network)}${type ? `&type=${encodeURIComponent(type)}` : ""}`;
+export const editPlanUrl = (id: string) => `${AIRTIME_DATA_PATH}/plans/${encodeURIComponent(id)}`;
 
 export const typeLabel = (types: DataTypeOption[], id: DataType) =>
   types.find((t) => t.id === id)?.label ?? id.toUpperCase();
