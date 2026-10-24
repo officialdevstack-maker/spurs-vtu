@@ -36,7 +36,7 @@ export const NAV: NavGroup[] = [
     collapsible: true,
     items: [
       { label: "Airtime", href: "/dashboard/airtime", icon: Smartphone },
-      { label: "Data", href: "/data", icon: Wifi },
+      { label: "Data", href: "/dashboard/data", icon: Wifi },
       { label: "Cable TV", href: "/cable-tv", icon: Tv },
       { label: "Electricity", href: "/electricity", icon: Zap },
     ],
