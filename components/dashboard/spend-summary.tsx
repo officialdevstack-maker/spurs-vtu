@@ -6,7 +6,7 @@ export function SpendSummary({ spend }: { spend: DashboardData["spend"] }) {
   const sorted = [...spend.byService].sort((a, b) => b.amount - a.amount);
 
   return (
-    <section aria-labelledby="spend-summary">
+    <section aria-labelledby="spend-summary" className="min-w-0">
       <h2 id="spend-summary" className="font-[family-name:var(--font-display)] text-lg font-bold">
         Spent in {monthName()}
       </h2>
@@ -20,9 +20,9 @@ export function SpendSummary({ spend }: { spend: DashboardData["spend"] }) {
         <ul className="mt-4 space-y-3">
           {sorted.map((item, i) => (
             <li key={item.label}>
-              <div className="flex items-baseline justify-between text-sm">
-                <span>{item.label}</span>
-                <span className="font-medium tabular-nums">{formatNaira(item.amount)}</span>
+              <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate">{item.label}</span>
+                <span className="shrink-0 text-right font-medium tabular-nums">{formatNaira(item.amount)}</span>
               </div>
               {/* The amounts are the data; the bar is only a visual aid. */}
               <div aria-hidden="true" className="mt-1.5 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">

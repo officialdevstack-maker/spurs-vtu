@@ -22,7 +22,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
   const now = new Date();
 
   return (
-    <section aria-labelledby="recent-transactions">
+    <section aria-labelledby="recent-transactions" className="min-w-0">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 id="recent-transactions" className="font-[family-name:var(--font-display)] text-lg font-bold">
           Recent transactions
@@ -54,7 +54,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
             const status = STATUS[tx.status];
             const credit = tx.direction === "credit";
             return (
-              <li key={tx.id} className="flex items-center gap-4 px-4 py-4 sm:px-5">
+              <li key={tx.id} className="flex min-w-0 items-center gap-3 px-3 py-4 sm:gap-4 sm:px-5">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gray-100 text-[#12343B] dark:bg-white/10 dark:text-[#EEF3F4]">
                   <Icon className="size-5" aria-hidden="true" />
                 </span>
@@ -66,7 +66,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
                   </p>
                 </div>
 
-                <div className="shrink-0 text-right">
+                <div className="min-w-0 shrink-0 text-right">
                   <p
                     className={`font-semibold tabular-nums ${credit ? "text-[#1E8E4F] dark:text-[#4CC38A]" : ""}`}
                   >

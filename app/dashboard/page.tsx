@@ -9,6 +9,8 @@ import { SpendSummary } from "@/components/dashboard/spend-summary";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { formatLongDate, greetingFor } from "@/lib/format";
 import { getSpursUser } from "@spurs-cloud/accounts/next";
+import { SpursWallet } from "@spurs-cloud/wallet";
+import { createSpursClient } from "@spurs-cloud/accounts";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 
@@ -20,7 +22,12 @@ export default async function DashboardPage() {
   const user = await getSpursUser();
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
+  const spurs = createSpursClient();   // issuer built in, secret from env
   const now = new Date();
+
+  const wallet = new SpursWallet();               // secret from INTERNAL_API_SECRET
+  const ngnBal = await wallet.balanceOf(user?.sub as string, "NGN")
+
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -58,7 +65,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <Link
-            href="/verify"
+            href={spurs.accountUrl()}
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#12343B] px-5 text-sm font-semibold text-white outline-none transition-colors hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
           >
             Verify now
@@ -66,13 +73,15 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <BalanceCards wallet={data.wallet.balance} bonus={data.bonus.balance} />
+      <BalanceCards wallet={ngnBal} bonus={data.bonus.balance} />
 
       <QuickServices />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <RecentTransactions transactions={data.transactions} />
-        <div className="space-y-8">
+      <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="min-w-0">
+          <RecentTransactions transactions={data.transactions} />
+        </div>
+        <div className="min-w-0 space-y-8">
           <PackageCard pkg={data.package} />
           <SpendSummary spend={data.spend} />
         </div>

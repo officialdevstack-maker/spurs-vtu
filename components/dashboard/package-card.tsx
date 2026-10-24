@@ -10,7 +10,7 @@ export function PackageCard({ pkg }: { pkg: DashboardData["package"] }) {
   return (
     <section
       aria-labelledby="your-package"
-      className="rounded-2xl border border-gray-200 bg-gray-100 p-5 dark:border-white/10 dark:bg-white/5 sm:p-6"
+      className="min-w-0 rounded-2xl border border-gray-200 bg-gray-100 p-5 dark:border-white/10 dark:bg-white/5 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -24,9 +24,9 @@ export function PackageCard({ pkg }: { pkg: DashboardData["package"] }) {
 
       <ul className="mt-4 space-y-2">
         {pkg.perks.map((perk) => (
-          <li key={perk} className="flex items-start gap-2.5 text-sm">
+          <li key={perk} className="flex min-w-0 items-start gap-2.5 text-sm">
             <Check className="mt-0.5 size-4 shrink-0 text-[#1E8E4F] dark:text-[#4CC38A]" aria-hidden="true" />
-            {perk}
+            <span className="min-w-0 break-words">{perk}</span>
           </li>
         ))}
       </ul>
