@@ -17,8 +17,7 @@ export const ADMIN_NAV: NavGroup[] = [
         href: "/admin/products",
         icon: Package,
         children: [
-          { label: "Airtime", href: "/admin/products/airtime" },
-          { label: "Data", href: "/admin/products/data" },
+          { label: "Airtime & Data", href: "/admin/products/airtime-data" },
           { label: "Cable TV", href: "/admin/products/cable-tv" },
           { label: "Bills", href: "/admin/products/bills" },
           { label: "Exam", href: "/admin/products/exam" },

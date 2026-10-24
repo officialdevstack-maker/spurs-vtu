@@ -1,0 +1,22 @@
+import type { Metadata } from "next";
+import { AirtimeDataManager } from "@/components/admin/airtime-data/manager";
+import { getAirtimeDataProducts } from "@/lib/admin/airtime-data";
+
+export const metadata: Metadata = { title: "Airtime & data | Spur VTU" };
+
+export default async function AirtimeDataPage() {
+  const networks = await getAirtimeDataProducts();
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Airtime &amp; data</h1>
+        <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
+          Manage networks, network types, discounts, data plans and pin stock.
+        </p>
+      </header>
+
+      <AirtimeDataManager networks={networks} />
+    </div>
+  );
+}
