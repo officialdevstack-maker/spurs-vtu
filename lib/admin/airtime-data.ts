@@ -15,9 +15,17 @@ export type AirtimeDiscount = {
   type: DataType;
   min: number;
   max: number;
+  /** What the customer gets off */
   discount: number;
+  /** Provider that fulfils this range. null means any provider by priority. */
+  providerId: string | null;
+  providerName: string | null;
+  /** What the provider gives you. null means not set. */
+  providerDiscount: number | null;
   active: boolean;
 };
+
+export type ProviderOption = { id: string; name: string };
 
 export type DataPlan = {
   id: string;

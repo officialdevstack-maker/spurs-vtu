@@ -4,20 +4,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { Field, FormError, btnGhost, btnPrimary, inputClass } from "@/components/admin/modal";
-import { discountsUrl, type AirtimeDiscount, type DataTypeOption } from "@/lib/admin/airtime-data";
+import {
+  discountsUrl,
+  type AirtimeDiscount,
+  type DataTypeOption,
+  type ProviderOption,
+} from "@/lib/admin/airtime-data";
 import { formatNaira } from "@/lib/format";
 import { createDiscount, updateDiscount } from "@/app/admin/products/airtime-data/actions";
 
-type Errors = Partial<Record<"type" | "min" | "max" | "discount" | "form", string>>;
+type Errors = Partial<Record<"type" | "min" | "max" | "discount" | "providerDiscount" | "form", string>>;
 const toNumber = (value: string) => (value.trim() === "" ? Number.NaN : Number(value));
 
 export function DiscountForm({
   network,
   types,
+  providers,
   discount,
 }: {
   network: { id: string; name: string };
   types: DataTypeOption[];
+  providers: ProviderOption[];
   discount?: AirtimeDiscount;
 }) {
   const router = useRouter();
@@ -27,6 +34,10 @@ export function DiscountForm({
   const [min, setMin] = useState(discount ? String(discount.min) : "");
   const [max, setMax] = useState(discount ? String(discount.max) : "");
   const [percent, setPercent] = useState(discount ? String(discount.discount) : "");
+  const [providerId, setProviderId] = useState(discount?.providerId ?? "");
+  const [providerPercent, setProviderPercent] = useState(
+    discount?.providerDiscount != null ? String(discount.providerDiscount) : "",
+  );
   const [active, setActive] = useState(discount?.active ?? true);
   const [errors, setErrors] = useState<Errors>({});
   const [pending, startTransition] = useTransition();
@@ -34,9 +45,17 @@ export function DiscountForm({
   const minValue = toNumber(min);
   const maxValue = toNumber(max);
   const discountValue = toNumber(percent);
+  const providerValue = toNumber(providerPercent);
   const rangeValid = Number.isFinite(minValue) && Number.isFinite(maxValue) && maxValue >= minValue;
   const discountValid = Number.isFinite(discountValue) && discountValue >= 0 && discountValue <= 100;
+  const providerValid =
+    providerPercent.trim() === "" ||
+    (Number.isFinite(providerValue) && providerValue >= 0 && providerValue <= 100);
   const sample = rangeValid ? Math.min(Math.max(1000, minValue), maxValue) : null;
+  const margin =
+    sample !== null && discountValid && providerPercent.trim() !== "" && providerValid
+      ? (sample * (providerValue - discountValue)) / 100
+      : null;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,10 +67,19 @@ export function DiscountForm({
     if (!Number.isFinite(maxValue) || maxValue < 0) nextErrors.max = "Enter the largest amount.";
     else if (Number.isFinite(minValue) && maxValue < minValue) nextErrors.max = "Max can't be below the min amount.";
     if (!discountValid) nextErrors.discount = "Enter a number from 0 to 100.";
+    if (!providerValid) nextErrors.providerDiscount = "Enter a number from 0 to 100, or leave it blank.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    const input = { type, min: minValue, max: maxValue, discount: discountValue, active };
+    const input = {
+      type,
+      min: minValue,
+      max: maxValue,
+      discount: discountValue,
+      providerId: providerId || null,
+      providerDiscount: providerPercent.trim() === "" ? null : providerValue,
+      active,
+    };
     startTransition(async () => {
       try {
         const result = discount
@@ -140,7 +168,7 @@ export function DiscountForm({
 
       <Field
         id={`${base}-discount`}
-        label="Discount (%)"
+        label="Customer discount (%)"
         hint={
           discountValid && sample !== null
             ? `On ${formatNaira(sample)} airtime, the customer pays ${formatNaira(sample * (1 - discountValue / 100))}.`
@@ -161,6 +189,61 @@ export function DiscountForm({
           className={`${inputClass(!!errors.discount)} tabular-nums`}
         />
       </Field>
+
+      <fieldset className="space-y-5 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+        <legend className="px-2 text-sm font-medium">Provider</legend>
+        <Field
+          id={`${base}-provider`}
+          label="Fulfilled by"
+          hint={
+            providers.length === 0
+              ? "No provider has an active airtime endpoint yet. Add one under Gateways > Providers."
+              : "Purchases in this range go to this provider. Leave on any provider to use provider priority."
+          }
+        >
+          <select
+            id={`${base}-provider`}
+            value={providerId}
+            onChange={(event) => setProviderId(event.target.value)}
+            className={inputClass()}
+          >
+            <option value="">Any provider (by priority)</option>
+            {providers.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          id={`${base}-provider-discount`}
+          label="Provider discount (%)"
+          hint="What the provider gives you on this range. Optional, used to show your margin."
+          error={errors.providerDiscount}
+        >
+          <input
+            id={`${base}-provider-discount`}
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={100}
+            step="0.1"
+            value={providerPercent}
+            onChange={(event) => setProviderPercent(event.target.value)}
+            aria-invalid={!!errors.providerDiscount}
+            className={`${inputClass(!!errors.providerDiscount)} tabular-nums`}
+          />
+        </Field>
+
+        {margin !== null && sample !== null && (
+          <p className={`text-sm ${margin < 0 ? "text-[#C8432B]" : "text-gray-600 dark:text-[#9FB3B7]"}`}>
+            {margin < 0
+              ? `You'd lose ${formatNaira(Math.abs(margin))} on every ${formatNaira(sample)} sold.`
+              : `You'd earn ${formatNaira(margin)} on every ${formatNaira(sample)} sold.`}
+          </p>
+        )}
+      </fieldset>
 
       <label className="flex items-center gap-3 text-sm font-medium">
         <input

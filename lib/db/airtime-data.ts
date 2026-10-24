@@ -8,6 +8,7 @@ import type {
   DataTypeOption,
   NetworkProduct,
   PinStock,
+  ProviderOption,
   Service,
 } from "@/lib/admin/airtime-data";
 
@@ -25,6 +26,8 @@ export type DiscountFields = {
   min: number;
   max: number;
   discount: number;
+  providerId: string | null;
+  providerDiscount: number | null;
   active: boolean;
 };
 
@@ -47,6 +50,9 @@ type DiscountRow = {
   discount: string;
   min_amount: string;
   max_amount: string;
+  provider_id: string | null;
+  provider_name: string | null;
+  provider_discount: string | null;
   active: boolean;
 };
 type PinRow = {
@@ -59,7 +65,7 @@ type PinRow = {
   used: number;
 };
 
-const dbFail = (code: "OVERLAP" | "BAD_AIRTIME_TYPE" | "BAD_DATA_TYPE") =>
+const dbFail = (code: "OVERLAP" | "BAD_AIRTIME_TYPE" | "BAD_DATA_TYPE" | "BAD_PROVIDER") =>
   Object.assign(new Error(code), { code });
 
 function group<T extends { network_id: string }>(rows: T[]) {
@@ -88,6 +94,9 @@ const toDiscount = (r: DiscountRow): AirtimeDiscount => ({
   min: Number(r.min_amount),
   max: Number(r.max_amount),
   discount: Number(r.discount),
+  providerId: r.provider_id,
+  providerName: r.provider_name,
+  providerDiscount: r.provider_discount === null ? null : Number(r.provider_discount),
   active: r.active,
 });
 
@@ -109,7 +118,11 @@ export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
     pool.query<{ network_id: string; type_id: string }>("select network_id, type_id from network_data_types where enabled"),
     pool.query<PlanRow>("select id, network_id, type_id, size, validity, cost, price, active from data_plans order by cost, size"),
     pool.query<DiscountRow>(
-      "select id, network_id, type_id, discount, min_amount, max_amount, active from airtime_discounts order by type_id, min_amount",
+      `select d.id, d.network_id, d.type_id, d.discount, d.min_amount, d.max_amount,
+              d.provider_id, p.name as provider_name, d.provider_discount, d.active
+       from airtime_discounts d
+       left join providers p on p.id = d.provider_id
+       order by d.type_id, d.min_amount`,
     ),
     pool.query<PinRow>("select id, network_id, kind, label, price, available, used from pin_stock order by price"),
   ]);
@@ -247,6 +260,16 @@ async function checkDiscount(network: string, d: DiscountFields, ignoreId: strin
   const type = await pool.query("select 1 from data_types where id = $1 and service = 'airtime'", [d.type]);
   if (!type.rowCount) throw dbFail("BAD_AIRTIME_TYPE");
 
+  if (d.providerId) {
+    const provider = await pool.query(
+      `select 1 from providers p
+       join provider_endpoints e on e.provider_id = p.id and e.service = 'airtime'
+       where p.id = $1`,
+      [d.providerId],
+    );
+    if (!provider.rowCount) throw dbFail("BAD_PROVIDER");
+  }
+
   const overlap = await pool.query(
     `select 1 from airtime_discounts
      where network_id = $1 and type_id = $2
@@ -262,9 +285,10 @@ export async function createDiscount(network: string, d: DiscountFields) {
   await checkDiscount(network, d, null);
   return changed(
     await getPool().query(
-      `insert into airtime_discounts (id, network_id, type_id, discount, min_amount, max_amount, active)
-       values ($1, $2, $3, $4, $5, $6, $7)`,
-      [randomUUID(), network, d.type, d.discount, d.min, d.max, d.active],
+      `insert into airtime_discounts
+         (id, network_id, type_id, discount, min_amount, max_amount, provider_id, provider_discount, active)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [randomUUID(), network, d.type, d.discount, d.min, d.max, d.providerId, d.providerDiscount, d.active],
     ),
   );
 }
@@ -273,9 +297,11 @@ export async function updateDiscount(network: string, id: string, d: DiscountFie
   await checkDiscount(network, d, id);
   return changed(
     await getPool().query(
-      `update airtime_discounts set type_id = $3, discount = $4, min_amount = $5, max_amount = $6, active = $7
+      `update airtime_discounts
+       set type_id = $3, discount = $4, min_amount = $5, max_amount = $6,
+           provider_id = $7, provider_discount = $8, active = $9
        where id = $1 and network_id = $2`,
-      [id, network, d.type, d.discount, d.min, d.max, d.active],
+      [id, network, d.type, d.discount, d.min, d.max, d.providerId, d.providerDiscount, d.active],
     ),
   );
 }
@@ -296,16 +322,24 @@ export async function deleteDiscount(network: string, id: string) {
 
 export async function getDiscount(id: string): Promise<{ networkId: string; discount: AirtimeDiscount } | null> {
   const { rows } = await getPool().query<DiscountRow>(
-    "select id, network_id, type_id, discount, min_amount, max_amount, active from airtime_discounts where id = $1",
+    `select d.id, d.network_id, d.type_id, d.discount, d.min_amount, d.max_amount,
+            d.provider_id, p.name as provider_name, d.provider_discount, d.active
+     from airtime_discounts d
+     left join providers p on p.id = d.provider_id
+     where d.id = $1`,
     [id],
   );
   const row = rows[0];
   return row ? { networkId: row.network_id, discount: toDiscount(row) } : null;
 }
 
-export async function getDiscountFormContext(networkId: string, includeType?: string) {
+export async function getDiscountFormContext(
+  networkId: string,
+  includeType?: string,
+  includeProvider?: string,
+) {
   const pool = getPool();
-  const [network, types] = await Promise.all([
+  const [network, types, providers] = await Promise.all([
     pool.query<{ id: string; name: string }>("select id, name from networks where id = $1", [networkId]),
     pool.query<TypeRow>(
       `select t.id, t.label, t.service
@@ -315,9 +349,32 @@ export async function getDiscountFormContext(networkId: string, includeType?: st
        order by t.created_at, t.label`,
       [networkId, includeType ?? null],
     ),
+    pool.query<ProviderOption>(
+      `select p.id, p.name from providers p
+       where (p.enabled and exists (
+               select 1 from provider_endpoints e
+               where e.provider_id = p.id and e.service = 'airtime' and e.active))
+          or p.id = $1
+       order by p.priority, p.name`,
+      [includeProvider ?? null],
+    ),
   ]);
   const found = network.rows[0];
   if (!found) return null;
   const options: DataTypeOption[] = types.rows;
-  return { network: found, types: options };
+  return { network: found, types: options, providers: providers.rows };
+}
+
+export async function findAirtimeDiscount(network: string, type: string, amount: number) {
+  const { rows } = await getPool().query<DiscountRow>(
+    `select d.id, d.network_id, d.type_id, d.discount, d.min_amount, d.max_amount,
+            d.provider_id, p.name as provider_name, d.provider_discount, d.active
+     from airtime_discounts d
+     left join providers p on p.id = d.provider_id
+     where d.network_id = $1 and d.type_id = $2 and d.active
+       and d.min_amount <= $3 and d.max_amount >= $3
+     limit 1`,
+    [network, type, amount],
+  );
+  return rows[0] ? toDiscount(rows[0]) : null;
 }

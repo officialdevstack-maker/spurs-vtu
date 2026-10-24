@@ -250,12 +250,13 @@ export function DiscountsPanel({ network, types, commit }: PanelProps) {
         <Empty title="No discounts yet" text={`Discounts you add for ${network.name} will show up here.`} />
       ) : (
         <div className={tableWrap}>
-          <table className="w-full min-w-[40rem] text-sm">
+          <table className="w-full min-w-[48rem] text-sm">
             <thead className="border-b border-gray-200 dark:border-white/10">
               <tr>
                 <th scope="col" className={th}>Type</th>
                 <th scope="col" className={th}>Amount range</th>
                 <th scope="col" className={`${th} text-right`}>Discount</th>
+                <th scope="col" className={th}>Provider</th>
                 <th scope="col" className={`${th} text-right`}>Active</th>
                 <th scope="col" className={`${th} text-right`}><span className="sr-only">Actions</span></th>
               </tr>
@@ -272,6 +273,14 @@ export function DiscountsPanel({ network, types, commit }: PanelProps) {
                       {formatNaira(discount.min)} – {formatNaira(discount.max)}
                     </td>
                     <td className={`${td} text-right font-medium tabular-nums`}>{discount.discount}%</td>
+                    <td className={td}>
+                      <span>{discount.providerName ?? "Any provider"}</span>
+                      {discount.providerDiscount !== null && (
+                        <span className="ml-2 text-xs text-gray-600 dark:text-[#9FB3B7]">
+                          {discount.providerDiscount}% provider discount
+                        </span>
+                      )}
+                    </td>
                     <td className={td}>
                       <div className="flex items-center justify-end gap-3">
                         <OnOff on={discount.active} />

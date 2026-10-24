@@ -37,7 +37,7 @@ export default async function NewDiscountPage({
         </p>
       </header>
 
-      <DiscountForm network={context.network} types={context.types} />
+      <DiscountForm network={context.network} types={context.types} providers={context.providers} />
     </div>
   );
 }

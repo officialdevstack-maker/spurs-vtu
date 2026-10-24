@@ -24,6 +24,7 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
   if (code === "OVERLAP") return fail("That amount range overlaps another discount for this network and type.");
   if (code === "BAD_AIRTIME_TYPE") return fail("Pick an airtime network type.");
   if (code === "BAD_DATA_TYPE") return fail("Pick a data network type.");
+  if (code === "BAD_PROVIDER") return fail("Pick a provider that has an airtime endpoint, or choose any provider.");
   console.error("[airtime-data]", error);
   return fail("Something went wrong saving that. Try again.");
 }
@@ -172,6 +173,18 @@ function parseDiscount(input: unknown): DiscountFields | null {
   const discount = input as Partial<DiscountFields>;
   const type = clean(discount.type);
   if (!type) return null;
+  if (discount.providerId !== null && typeof discount.providerId !== "string") return null;
+  const providerId = discount.providerId?.trim() || null;
+  const providerDiscount = discount.providerDiscount;
+  if (
+    providerDiscount !== null &&
+    (typeof providerDiscount !== "number" ||
+      !Number.isFinite(providerDiscount) ||
+      providerDiscount < 0 ||
+      providerDiscount > 100)
+  ) {
+    return null;
+  }
   if (
     typeof discount.min !== "number" ||
     !Number.isFinite(discount.min) ||
@@ -194,12 +207,14 @@ function parseDiscount(input: unknown): DiscountFields | null {
     min: round2(discount.min),
     max: round2(discount.max),
     discount: round2(discount.discount),
+    providerId,
+    providerDiscount: providerDiscount === null ? null : round2(providerDiscount),
     active: discount.active,
   };
 }
 
 const DISCOUNT_BAD = fail("Check the discount details and try again.");
-const DISCOUNT_FK = "That network or type no longer exists. Refresh the page.";
+const DISCOUNT_FK = "That network, type, or provider no longer exists. Refresh the page.";
 
 export async function createDiscount(network: string, input: DiscountFields): Promise<ActionResult> {
   await requireAdmin();

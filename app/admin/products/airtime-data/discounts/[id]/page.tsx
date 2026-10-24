@@ -16,7 +16,11 @@ export default async function EditDiscountPage({ params }: { params: Promise<{ i
   const found = await getDiscount(id);
   if (!found) notFound();
 
-  const context = await getDiscountFormContext(found.networkId, found.discount.type);
+  const context = await getDiscountFormContext(
+    found.networkId,
+    found.discount.type,
+    found.discount.providerId ?? undefined,
+  );
   if (!context) notFound();
 
   return (
@@ -33,7 +37,12 @@ export default async function EditDiscountPage({ params }: { params: Promise<{ i
         <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">Change the {context.network.name} airtime discount.</p>
       </header>
 
-      <DiscountForm network={context.network} types={context.types} discount={found.discount} />
+      <DiscountForm
+        network={context.network}
+        types={context.types}
+        providers={context.providers}
+        discount={found.discount}
+      />
     </div>
   );
 }
