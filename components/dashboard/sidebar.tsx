@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { Bell, ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
 import { NAV } from "@/lib/nav";
 
-export type SidebarUser = { name: string; email?: string; picture?: string | null };
+export type SidebarUser = { name: string; username?: string; email?: string; picture?: string | null };
 
 /**
  * Palette
@@ -248,6 +248,7 @@ export function Sidebar({
           </span>
           <div className={`min-w-0 ${R_HIDE}`}>
             <p className="truncate text-sm font-medium">{user.name}</p>
+            {user.username && <p className="truncate text-xs text-gray-500 dark:text-[#8FA5A9]">@{user.username}</p>}
             {user.email && <p className="truncate text-xs text-gray-500 dark:text-[#8FA5A9]">{user.email}</p>}
           </div>
         </div>

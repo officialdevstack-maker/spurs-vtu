@@ -17,7 +17,8 @@ export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
-  const user = await getSpursUser()
+  const user = await getSpursUser();
+  const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
   const now = new Date();
 
   return (
@@ -27,6 +28,7 @@ export default async function DashboardPage() {
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">
             {greetingFor(now)}, {user?.name}
           </h1>
+          {username && <p className="mt-1 font-medium text-gray-600 dark:text-[#9FB3B7]">@{username}</p>}
           <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">{formatLongDate(now)}</p>
         </div>
 
