@@ -4,16 +4,23 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar, Wordmark, type SidebarUser } from "./sidebar";
+import type { NavGroup } from "@/lib/nav";
 
 const COLLAPSED_KEY = "spur-sidebar-collapsed";
 
 export function DashboardShell({
   user,
   unreadCount,
+  nav,
+  brandSuffix,
+  showNotifications,
   children,
 }: {
   user: SidebarUser;
   unreadCount?: number;
+  nav?: NavGroup[];
+  brandSuffix?: string;
+  showNotifications?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -95,6 +102,9 @@ export function DashboardShell({
       <Sidebar
         user={user}
         unreadCount={unreadCount}
+        nav={nav}
+        brandSuffix={brandSuffix}
+        showNotifications={showNotifications}
         open={open}
         collapsed={collapsed}
         onClose={closeDrawer}
@@ -114,7 +124,7 @@ export function DashboardShell({
           >
             <Menu className="size-6" />
           </button>
-          <Wordmark />
+          <Wordmark suffix={brandSuffix} />
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>

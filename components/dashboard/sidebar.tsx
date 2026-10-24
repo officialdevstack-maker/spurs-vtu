@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { Bell, ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
-import { NAV } from "@/lib/nav";
+import { NAV, type NavGroup } from "@/lib/nav";
 
 export type SidebarUser = { name: string; username?: string; email?: string; picture?: string | null };
 
@@ -28,7 +28,7 @@ const R_ONECOL = "lg:group-data-[collapsed=true]/side:grid-cols-1";
 
 const GROUPS_KEY = "spur-nav-groups";
 
-export function Wordmark({ textClassName = "" }: { textClassName?: string }) {
+export function Wordmark({ textClassName = "", suffix }: { textClassName?: string; suffix?: string }) {
   return (
     <div className="flex items-center gap-3">
       <span
@@ -37,7 +37,14 @@ export function Wordmark({ textClassName = "" }: { textClassName?: string }) {
       >
         S
       </span>
-      <span className={`text-xl font-bold tracking-tight ${textClassName}`}>Spur VTU</span>
+      <span className={`text-xl font-bold tracking-tight ${textClassName}`}>
+        Spur VTU
+        {suffix && (
+          <span className="ml-2 rounded-md bg-[#12343B] px-1.5 py-0.5 align-middle text-[11px] font-semibold uppercase tracking-wide text-[#EEF3F4] dark:bg-[#F2B632] dark:text-[#12343B]">
+            {suffix}
+          </span>
+        )}
+      </span>
     </div>
   );
 }
@@ -50,6 +57,9 @@ export function Sidebar({
   unreadCount = 0,
   signOutHref = "/logout",
   notificationsHref = "/notifications",
+  nav = NAV,
+  brandSuffix,
+  showNotifications = true,
   open,
   collapsed,
   onClose,
@@ -60,6 +70,9 @@ export function Sidebar({
   unreadCount?: number;
   signOutHref?: string;
   notificationsHref?: string;
+  nav?: NavGroup[];
+  brandSuffix?: string;
+  showNotifications?: boolean;
   /** Mobile drawer state. Ignored on desktop, where the sidebar is always visible. */
   open: boolean;
   /** Desktop icon-only rail. Ignored on mobile. */
@@ -71,7 +84,8 @@ export function Sidebar({
   onToggleCollapsed: () => void;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string, exact?: boolean) =>
+    pathname === href || (!exact && pathname.startsWith(`${href}/`));
 
   // Which collapsible groups the person has closed. Remembered across visits.
   const [closedGroups, setClosedGroups] = useState<Record<string, boolean>>({});
@@ -138,7 +152,7 @@ export function Sidebar({
       ].join(" ")}
     >
       <div className={`flex h-16 shrink-0 items-center justify-between px-5 ${R_CENTER} ${R_NOPX}`}>
-        <Wordmark textClassName={R_HIDE} />
+        <Wordmark textClassName={R_HIDE} suffix={brandSuffix} />
         <button
           ref={closeRef}
           type="button"
@@ -161,9 +175,9 @@ export function Sidebar({
       </button>
 
       <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 py-4 no-scrollbar">
-        {NAV.map((group, index) => {
+        {nav.map((group, index) => {
           const closed = !!group.collapsible && !!closedGroups[group.id];
-          const hasActive = group.items.some((item) => isActive(item.href));
+          const hasActive = group.items.some((item) => isActive(item.href, item.exact));
           const listId = `nav-${group.id}`;
           return (
             <div key={group.id}>
@@ -199,8 +213,8 @@ export function Sidebar({
 
               {/* The rail always shows every icon, even for a group that is closed. */}
               <ul id={listId} hidden={closed} className={`space-y-0.5 ${R_SHOW}`}>
-                {group.items.map(({ label, href, icon: Icon }) => {
-                  const active = isActive(href);
+                {group.items.map(({ label, href, icon: Icon, exact }) => {
+                  const active = isActive(href, exact);
                   return (
                     <li key={href}>
                       <Link
@@ -253,24 +267,26 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className={`grid grid-cols-3 gap-2 ${R_ONECOL}`}>
-          <Link
-            href={notificationsHref}
-            onClick={onNavigate}
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-            title="Notifications"
-            className={iconButton}
-          >
-            <Bell className="size-5" aria-hidden="true" />
-            {unreadCount > 0 && (
-              <span
-                aria-hidden="true"
-                className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#F2B632] px-1 text-[10px] font-bold leading-none text-[#12343B]"
-              >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </Link>
+        <div className={`grid ${showNotifications ? "grid-cols-3" : "grid-cols-2"} gap-2 ${R_ONECOL}`}>
+          {showNotifications && (
+            <Link
+              href={notificationsHref}
+              onClick={onNavigate}
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+              title="Notifications"
+              className={iconButton}
+            >
+              <Bell className="size-5" aria-hidden="true" />
+              {unreadCount > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#F2B632] px-1 text-[10px] font-bold leading-none text-[#12343B]"
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             type="button"
             onClick={toggleTheme}

@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavItem = { label: string; href: string; icon: LucideIcon };
+export type NavItem = { label: string; href: string; icon: LucideIcon; exact?: boolean };
 export type NavGroup = { id: string; label: string; collapsible?: boolean; items: NavItem[] };
 
 /** Edit routes and labels here; the sidebar renders whatever is in this list. */

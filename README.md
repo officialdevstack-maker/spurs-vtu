@@ -20,6 +20,12 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Admin access
+
+Set `ADMIN_SPURS_IDS` to a comma-separated list of authorized Spurs account IDs
+(`sub` claims) to access `/admin`. If the variable is unset or empty, admin
+access is denied to everyone.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -1,0 +1,21 @@
+import type { ReactNode } from "react";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin/auth";
+
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  const user = await requireAdmin();
+  const username = "username" in user && typeof user.username === "string" ? user.username : undefined;
+
+  return (
+    <AdminShell
+      user={{
+        name: user.name ?? "Admin",
+        username,
+        email: user.email,
+        picture: user.picture,
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
+}
