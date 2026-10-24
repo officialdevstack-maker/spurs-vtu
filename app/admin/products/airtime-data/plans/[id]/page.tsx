@@ -9,6 +9,7 @@ import { plansUrl } from "@/lib/admin/airtime-data";
 import { getPlan, getPlanFormContext } from "@/lib/db/airtime-data";
 
 export const metadata: Metadata = { title: "Edit data plan | Spur VTU" };
+export const instant = false;
 
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
