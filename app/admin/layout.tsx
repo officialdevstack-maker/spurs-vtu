@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { requireAdmin } from "@/lib/admin/auth";
+import { getAdminAccess } from "@/lib/admin/auth";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   return (
@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 }
 
 async function AuthenticatedAdminShell({ children }: { children: ReactNode }) {
-  const user = await requireAdmin();
+  const { user, permissions } = await getAdminAccess();
   const username = "username" in user && typeof user.username === "string" ? user.username : undefined;
 
   return (
@@ -28,6 +28,7 @@ async function AuthenticatedAdminShell({ children }: { children: ReactNode }) {
         email: user.email,
         picture: user.picture,
       }}
+      permissions={[...permissions]}
     >
       {children}
     </AdminShell>

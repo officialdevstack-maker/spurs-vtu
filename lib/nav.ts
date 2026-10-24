@@ -10,13 +10,15 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import type { Permission } from "@/lib/admin/permissions";
 
-export type NavChild = { label: string; href: string; exact?: boolean };
+export type NavChild = { label: string; href: string; exact?: boolean; permission?: Permission };
 export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
   exact?: boolean;
+  permission?: Permission;
   /** Sub-pages. The parent becomes an expandable row instead of a link. */
   children?: NavChild[];
 };

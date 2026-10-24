@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { syncCustomer } from "@/lib/db/customers";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireSpursUser();
+  try {
+    await syncCustomer(user);
+  } catch (error) {
+    console.error("Could not sync signed-in customer.", error);
+  }
   const username = "username" in user && typeof user.username === "string" ? user.username : undefined;
   const unreadCount = 3;
 
