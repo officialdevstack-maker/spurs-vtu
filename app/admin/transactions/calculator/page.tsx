@@ -1,25 +1,31 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { SalesFilters, SalesReportView } from "@/components/admin/calculator/sales-report";
 import { requirePermission } from "@/lib/admin/auth";
+import { getSalesReport } from "@/lib/db/transactions";
+import { formatDay, parseReportRange, type ReportParams } from "@/lib/sales-report";
 
-export const metadata: Metadata = { title: "Transaction calculator | Spur VTU" };
+export const metadata: Metadata = { title: "Sales calculator | Spur VTU" };
 
-export default async function TransactionCalculatorPage() {
+const PATH = "/admin/transactions/calculator";
+
+export default async function TransactionCalculatorPage({ searchParams }: { searchParams: Promise<ReportParams> }) {
   await connection();
   await requirePermission("transactions.view");
+  const range = parseReportRange(await searchParams);
+  const report = await getSalesReport(range.from, range.to);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Calculator</h1>
-        <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">Calculate transaction amounts and margins.</p>
+        <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
+          Services sold from {formatDay(range.from)} to {formatDay(range.to)}, in Lagos time.
+        </p>
       </header>
 
-      <section className="rounded-2xl border border-gray-200 bg-gray-100 p-6 dark:border-white/10 dark:bg-white/5">
-        <h2 className="font-semibold">Transaction calculator is coming soon</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
-          Transaction calculation tools will be available here.
-        </p>
-      </section>
+      <SalesFilters basePath={PATH} range={range} />
+      <SalesReportView report={report} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
           Recent transactions
         </h2>
         <Link
-          href="/transactions"
+          href="/dashboard/transactions"
           className="rounded text-sm font-semibold underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632]"
         >
           View all

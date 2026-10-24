@@ -52,7 +52,7 @@ export const ADMIN_NAV: NavGroup[] = [
     id: "admin-transactions",
     label: "Transactions",
     items: [
-      { label: "History", href: "/admin/transactions", icon: Receipt, permission: "transactions.view" },
+      { label: "History", href: "/admin/transactions/list", icon: Receipt, permission: "transactions.view" },
       { label: "Calculator", href: "/admin/transactions/calculator", icon: Calculator, permission: "transactions.view" },
     ],
   },
