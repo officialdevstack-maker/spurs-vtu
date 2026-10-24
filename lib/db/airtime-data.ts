@@ -59,7 +59,8 @@ type PinRow = {
   used: number;
 };
 
-const dbFail = (code: "OVERLAP" | "BAD_TYPE") => Object.assign(new Error(code), { code });
+const dbFail = (code: "OVERLAP" | "BAD_AIRTIME_TYPE" | "BAD_DATA_TYPE") =>
+  Object.assign(new Error(code), { code });
 
 function group<T extends { network_id: string }>(rows: T[]) {
   const map = new Map<string, T[]>();
@@ -200,7 +201,13 @@ export async function setNetworkTypeEnabled(network: string, type: string, enabl
   );
 }
 
+async function checkDataType(type: string) {
+  const result = await getPool().query("select 1 from data_types where id = $1 and service = 'data'", [type]);
+  if (!result.rowCount) throw dbFail("BAD_DATA_TYPE");
+}
+
 export async function createPlan(network: string, p: PlanFields) {
+  await checkDataType(p.type);
   return changed(
     await getPool().query(
       `insert into data_plans (id, network_id, type_id, size, validity, cost, price, active)
@@ -211,6 +218,7 @@ export async function createPlan(network: string, p: PlanFields) {
 }
 
 export async function updatePlan(network: string, planId: string, p: PlanFields) {
+  await checkDataType(p.type);
   return changed(
     await getPool().query(
       `update data_plans set type_id = $3, size = $4, validity = $5, cost = $6, price = $7, active = $8
@@ -237,7 +245,7 @@ export async function deletePlan(network: string, planId: string) {
 async function checkDiscount(network: string, d: DiscountFields, ignoreId: string | null) {
   const pool = getPool();
   const type = await pool.query("select 1 from data_types where id = $1 and service = 'airtime'", [d.type]);
-  if (!type.rowCount) throw dbFail("BAD_TYPE");
+  if (!type.rowCount) throw dbFail("BAD_AIRTIME_TYPE");
 
   const overlap = await pool.query(
     `select 1 from airtime_discounts

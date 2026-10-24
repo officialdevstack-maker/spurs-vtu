@@ -12,11 +12,20 @@ export function getPool(): Pool {
   }
 
   return (globalThis.__vtuPostgresPool ??= new Pool({
-    connectionString,
+    connectionString: secureConnectionString(connectionString),
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   }));
+}
+
+function secureConnectionString(connectionString: string): string {
+  const url = new URL(connectionString);
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    throw new Error("DATABASE_URL must be a PostgreSQL connection URL.");
+  }
+  url.searchParams.set("sslmode", "require");
+  return url.toString();
 }
 
 export async function checkDatabaseConnection(): Promise<void> {

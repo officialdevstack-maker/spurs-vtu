@@ -22,7 +22,8 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
   if (code === "23505") return fail("That already exists. Try a different name.");
   if (code === "23503") return fail(fkMessage);
   if (code === "OVERLAP") return fail("That amount range overlaps another discount for this network and type.");
-  if (code === "BAD_TYPE") return fail("Pick an airtime network type.");
+  if (code === "BAD_AIRTIME_TYPE") return fail("Pick an airtime network type.");
+  if (code === "BAD_DATA_TYPE") return fail("Pick a data network type.");
   console.error("[airtime-data]", error);
   return fail("Something went wrong saving that. Try again.");
 }

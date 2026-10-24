@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Tabs } from "@/components/admin/tabs";
 import { btnIcon, btnPrimary } from "@/components/admin/modal";
@@ -43,6 +43,7 @@ export function AirtimeDataManager({
   initialSection?: string;
 }) {
   const [networks, setNetworks] = useState(initial);
+  const [previousProps, setPreviousProps] = useState({ initial, initialNetwork, initialSection });
   const [networkId, setNetworkId] = useState(
     initial.find((network) => network.id === initialNetwork)?.id ?? initial[0]?.id ?? "",
   );
@@ -53,12 +54,23 @@ export function AirtimeDataManager({
   const [dialog, setDialog] = useState<Dialog>(null);
   const [, startTransition] = useTransition();
 
-  useEffect(() => {
+  if (
+    previousProps.initial !== initial ||
+    previousProps.initialNetwork !== initialNetwork ||
+    previousProps.initialSection !== initialSection
+  ) {
+    setPreviousProps({ initial, initialNetwork, initialSection });
     setNetworks(initial);
-    setNetworkId((current) => initial.some((network) => network.id === current)
-      ? current
-      : initial.find((network) => network.id === initialNetwork)?.id ?? initial[0]?.id ?? "");
-  }, [initial, initialNetwork]);
+    if (
+      previousProps.initialNetwork !== initialNetwork ||
+      !initial.some((network) => network.id === networkId)
+    ) {
+      setNetworkId(initial.find((network) => network.id === initialNetwork)?.id ?? initial[0]?.id ?? "");
+    }
+    if (previousProps.initialSection !== initialSection) {
+      setSection(SECTIONS.find((item) => item.id === initialSection)?.id ?? SECTIONS[0].id);
+    }
+  }
 
   const commit: Commit = (next, run) => {
     const previous = networks;
