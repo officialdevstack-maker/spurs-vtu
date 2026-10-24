@@ -23,6 +23,11 @@ export function monthName(date: Date = new Date()): string {
 
 const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d); // YYYY-MM-DD
 
+const count = new Intl.NumberFormat("en-NG");
+
+/** 12840 -> "12,840" */
+export const formatNumber = (n: number) => count.format(n);
+
 /** "Today, 2:14 pm" / "Yesterday, 9:03 am" / "12 Oct, 4:40 pm" */
 export function formatWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);

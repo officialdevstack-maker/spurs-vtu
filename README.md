@@ -26,6 +26,13 @@ Set `ADMIN_SPURS_IDS` to a comma-separated list of authorized Spurs account IDs
 (`sub` claims) to access `/admin`. If the variable is unset or empty, admin
 access is denied to everyone.
 
+## PostgreSQL
+
+Set `DATABASE_URL` in `.env` to the dedicated VTU PostgreSQL connection string.
+Use `.env.example` as a template and keep the real URL private. Server-side
+database access is available through `getDb` and `checkDatabaseConnection` in
+`lib/db`; the connection pool is created lazily on first use.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
