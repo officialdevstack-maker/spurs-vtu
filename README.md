@@ -34,6 +34,11 @@ TLS for PostgreSQL connections. Server-side database access is available through
 `getPool` and `checkDatabaseConnection` in `lib/db`; the connection pool is
 created lazily on first use.
 
+Provider credentials are encrypted at rest. Set `PROVIDER_SECRET_KEY` in `.env`
+to a dedicated, randomly generated 32-byte base64 key before saving provider
+secrets. Keep this key private and back it up securely; changing it makes
+previously encrypted provider secrets unreadable.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
