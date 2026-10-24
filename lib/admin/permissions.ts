@@ -1,6 +1,7 @@
 export const PERMISSIONS = [
   "customers.view",
   "customers.manage",
+  "packages.manage",
   "products.view",
   "products.manage",
   "gateways.manage",
@@ -25,6 +26,13 @@ export const PERMISSION_GROUPS: {
     permissions: [
       { id: "customers.view", label: "View customers", hint: "See the customer list and details." },
       { id: "customers.manage", label: "Manage customers", hint: "Suspend and reactivate accounts." },
+    ],
+  },
+  {
+    id: "packages",
+    label: "Packages",
+    permissions: [
+      { id: "packages.manage", label: "Manage packages", hint: "Add, edit and delete packages and set upgrade fees." },
     ],
   },
   {

@@ -18,6 +18,7 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: Users,
         children: [
           { label: "Customers", href: "/admin/users/list", permission: "customers.view" },
+          { label: "Packages", href: "/admin/users/packages", permission: "packages.manage" },
           { label: "Roles & permissions", href: "/admin/users/roles", permission: "roles.manage" },
         ],
       },
