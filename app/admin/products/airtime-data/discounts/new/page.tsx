@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { requirePermission } from "@/lib/admin/auth";
 import { ArrowLeft } from "lucide-react";
 import { DiscountForm } from "@/components/admin/airtime-data/discount-form";
 import { discountsUrl } from "@/lib/admin/airtime-data";
@@ -15,6 +16,7 @@ export default async function NewDiscountPage({
   searchParams: Promise<{ network?: string }>;
 }) {
   await connection();
+  await requirePermission("products.view");
   const { network: networkId } = await searchParams;
   if (!networkId) notFound();
 

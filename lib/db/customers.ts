@@ -86,17 +86,19 @@ export async function syncCustomer(user: {
   name?: string;
   username?: string;
   email?: string;
+  phone?: string;
 }): Promise<CustomerStatus> {
   const { rows } = await getPool().query<{ status: CustomerStatus }>(
-    `insert into customers (id, name, username, email)
-     values ($1, $2, $3, $4)
+    `insert into customers (id, name, username, email, phone)
+     values ($1, $2, $3, $4, $5)
      on conflict (id) do update
        set name = excluded.name,
            username = excluded.username,
            email = excluded.email,
+           phone = coalesce(excluded.phone, customers.phone),
            last_seen_at = now()
      returning status`,
-    [user.sub, user.name ?? null, user.username ?? null, user.email ?? null],
+    [user.sub, user.name ?? null, user.username ?? null, user.email ?? null, user.phone ?? null],
   );
   const customer = rows[0];
   if (!customer) throw new Error("Customer sync did not return a row.");

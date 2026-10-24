@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requirePermission } from "@/lib/admin/auth";
 import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type Service } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";

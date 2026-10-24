@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { requirePermission } from "@/lib/admin/auth";
 
 export const metadata: Metadata = { title: "Transaction calculator | Spur VTU" };
 
-export default function TransactionCalculatorPage() {
+export default async function TransactionCalculatorPage() {
+  await connection();
+  await requirePermission("transactions.view");
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>

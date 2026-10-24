@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requirePermission } from "@/lib/admin/auth";
 import { AUTH_TYPES, KINDS, PROVIDERS_PATH, PROVIDER_SERVICES, type HttpMethod } from "@/lib/admin/providers";
 import { slugify } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/providers";

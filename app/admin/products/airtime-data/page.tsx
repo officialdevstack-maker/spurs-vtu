@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { requirePermission } from "@/lib/admin/auth";
 import { AirtimeDataManager } from "@/components/admin/airtime-data/manager";
 import { getAirtimeDataProducts } from "@/lib/db/airtime-data";
 
@@ -11,6 +12,7 @@ export default async function AirtimeDataPage({
   searchParams: Promise<{ network?: string; tab?: string }>;
 }) {
   await connection();
+  await requirePermission("products.view");
   const { network, tab } = await searchParams;
   const { networks, types } = await getAirtimeDataProducts();
 

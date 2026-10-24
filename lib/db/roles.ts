@@ -7,6 +7,13 @@ export type RoleFields = { name: string; description: string; permissions: Permi
 
 const dbFail = (code: "NO_CUSTOMER" | "ALREADY_STAFF") => Object.assign(new Error(code), { code });
 const changed = (result: { rowCount: number | null }) => (result.rowCount ?? 0) > 0;
+const ownerIds = () =>
+  new Set(
+    (process.env.ADMIN_SPURS_IDS ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
 
 export async function listRoles(): Promise<Role[]> {
   const pool = getPool();
@@ -113,7 +120,8 @@ export async function listStaff(): Promise<StaffMember[]> {
        join roles r on r.id = s.role_id
       order by s.created_at desc, s.id`,
   );
-  return rows.map((row) => ({
+  const owners = ownerIds();
+  return rows.filter((row) => !owners.has(row.id)).map((row) => ({
     id: row.id,
     name: row.name,
     username: row.username,
@@ -141,6 +149,7 @@ export async function addStaff(identifier: string, roleId: string): Promise<bool
   );
   const customer = rows[0];
   if (!customer) throw dbFail("NO_CUSTOMER");
+  if (ownerIds().has(customer.id)) throw Object.assign(new Error("OWNER"), { code: "OWNER" });
 
   const result = await pool.query(
     `insert into staff_members (id, name, username, email, role_id)

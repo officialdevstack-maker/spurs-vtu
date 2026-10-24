@@ -6,7 +6,10 @@ import { syncCustomer } from "@/lib/db/customers";
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireSpursUser();
   try {
-    await syncCustomer(user);
+    await syncCustomer({
+      ...user,
+      phone: "phone" in user && typeof user.phone === "string" ? user.phone : undefined,
+    });
   } catch (error) {
     console.error("Could not sync signed-in customer.", error);
   }

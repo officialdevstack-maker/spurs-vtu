@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { requirePermission } from "@/lib/admin/auth";
 
 export const metadata: Metadata = { title: "Payment gateways | Spur VTU" };
 
-export default function PaymentGatewaysPage() {
+export default async function PaymentGatewaysPage() {
+  await connection();
+  await requirePermission("gateways.manage");
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>

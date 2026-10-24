@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { requirePermission } from "@/lib/admin/auth";
 import { ProvidersManager } from "@/components/admin/providers/manager";
 import { getProviders } from "@/lib/db/providers";
 
@@ -11,6 +12,7 @@ export default async function ProvidersPage({
   searchParams: Promise<{ provider?: string }>;
 }) {
   await connection();
+  await requirePermission("gateways.manage");
   const { provider } = await searchParams;
   const providers = await getProviders();
 
