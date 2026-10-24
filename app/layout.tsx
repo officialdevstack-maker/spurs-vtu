@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const display = Familjen_Grotesk({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "700"],
+});
+
+const body = Figtree({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
@@ -20,7 +26,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col font-sans antialiased`}>
+      <body className={`${display.variable} ${body.variable} ${geistMono.variable} min-h-full flex flex-col font-sans antialiased`}>
         {children}
       </body>
     </html>

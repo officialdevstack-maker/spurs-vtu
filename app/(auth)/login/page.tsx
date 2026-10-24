@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { Familjen_Grotesk, Figtree } from "next/font/google";
 import { SpursSignInButton } from "@spurs-cloud/accounts/react";
 
 export const metadata: Metadata = {
   title: "Log in | Spur VTU",
   description: "Log in to Spur VTU with your Spurs account.",
 };
-
-const display = Familjen_Grotesk({ subsets: ["latin"], variable: "--font-display", weight: ["500", "700"] });
-const body = Figtree({ subsets: ["latin"], variable: "--font-body" });
 
 /**
  * Palette
@@ -90,7 +86,7 @@ const FOOTER_LINKS = [
 export default function LoginPage() {
   return (
     <main
-      className={`${display.variable} ${body.variable} min-h-dvh bg-[#EEF3F4] font-[family-name:var(--font-body)] text-[#12343B] lg:grid lg:grid-cols-[5fr_6fr]`}
+      className="min-h-dvh bg-[#EEF3F4] text-[#12343B] lg:grid lg:grid-cols-[5fr_6fr]"
     >
       <aside className="hidden flex-col justify-between bg-[#12343B] p-12 text-[#EEF3F4] lg:flex">
         <Wordmark />
