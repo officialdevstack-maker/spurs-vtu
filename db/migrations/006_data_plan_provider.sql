@@ -5,9 +5,8 @@ alter table data_plans
   add column if not exists provider_plan_id text not null default '';
 
 update data_plans
-set volume = substring(size from '^[0-9]+(\.[0-9]+)?')::numeric,
+set volume = btrim(regexp_replace(size, '[[:alpha:]]+$', ''))::numeric,
     unit = lower(substring(size from '[A-Za-z]+$'))
-where volume is null
-  and size ~* '^[0-9]+(\.[0-9]+)?\s*(mb|gb)$';
+where size ~* '^[0-9]+(\.[0-9]+)?\s*(mb|gb)$';
 
 create index if not exists data_plans_provider_idx on data_plans (provider_id);

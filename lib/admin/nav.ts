@@ -11,7 +11,15 @@ export const ADMIN_NAV: NavGroup[] = [
     id: "admin-management",
     label: "Management",
     items: [
-      { label: "User management", href: "/admin/users", icon: Users },
+      {
+        label: "User management",
+        href: "/admin/users",
+        icon: Users,
+        children: [
+          { label: "Customers", href: "/admin/users/customers" },
+          { label: "Roles & permissions", href: "/admin/users/roles" },
+        ],
+      },
       {
         label: "Products",
         href: "/admin/products",
