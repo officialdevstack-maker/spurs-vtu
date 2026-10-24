@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Tabs } from "@/components/admin/tabs";
-import type { NetworkId, NetworkProduct } from "@/lib/admin/airtime-data";
+import type { DataTypeOption, NetworkProduct } from "@/lib/admin/airtime-data";
 import { setNetworkEnabled } from "@/app/admin/products/airtime-data/actions";
 import {
   AirtimeDiscountPanel,
@@ -21,9 +21,9 @@ const SECTIONS = [
   { id: "data-pins", label: "Data pins" },
 ];
 
-export function AirtimeDataManager({ networks: initial }: { networks: NetworkProduct[] }) {
+export function AirtimeDataManager({ networks: initial, types }: { networks: NetworkProduct[]; types: DataTypeOption[] }) {
   const [networks, setNetworks] = useState(initial);
-  const [networkId, setNetworkId] = useState<NetworkId>(initial[0]?.id ?? "mtn");
+  const [networkId, setNetworkId] = useState(initial[0]?.id ?? "mtn");
   const [section, setSection] = useState(SECTIONS[0].id);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -66,7 +66,7 @@ export function AirtimeDataManager({ networks: initial }: { networks: NetworkPro
         </p>
       )}
 
-      <Tabs label="Network" tabs={networkTabs} value={network.id} onChange={(id) => setNetworkId(id as NetworkId)}>
+      <Tabs label="Network" tabs={networkTabs} value={network.id} onChange={setNetworkId}>
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-gray-100 p-4 dark:border-white/10 dark:bg-white/5 sm:px-5">
             <div className="min-w-0">
@@ -84,9 +84,9 @@ export function AirtimeDataManager({ networks: initial }: { networks: NetworkPro
 
           <Tabs label={`${network.name} settings`} tabs={SECTIONS} value={section} onChange={setSection} variant="pill">
             <div key={`${network.id}-${section}`}>
-              {section === "types" && <NetworkTypesPanel network={network} commit={commit} />}
+              {section === "types" && <NetworkTypesPanel network={network} types={types} commit={commit} />}
               {section === "discount" && <AirtimeDiscountPanel network={network} commit={commit} />}
-              {section === "plans" && <DataPlansPanel network={network} commit={commit} />}
+              {section === "plans" && <DataPlansPanel network={network} types={types} commit={commit} />}
               {section === "airtime-pins" && <PinsPanel kind="airtime" network={network} />}
               {section === "data-pins" && <PinsPanel kind="data" network={network} />}
             </div>

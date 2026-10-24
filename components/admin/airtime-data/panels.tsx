@@ -4,7 +4,7 @@ import { useId, useState, type FormEvent } from "react";
 import { Receipt } from "lucide-react";
 import { Tabs } from "@/components/admin/tabs";
 import { formatNaira } from "@/lib/format";
-import { DATA_TYPES, typeLabel, type NetworkProduct, type PinStock } from "@/lib/admin/airtime-data";
+import { typeLabel, type DataTypeOption, type NetworkProduct, type PinStock } from "@/lib/admin/airtime-data";
 import {
   saveAirtimeDiscount,
   setNetworkTypeEnabled,
@@ -15,7 +15,7 @@ import {
 /** Applies a change on screen right away, runs the server action, and rolls back if it fails. */
 export type Commit = (next: NetworkProduct, run: () => Promise<ActionResult>) => void;
 
-type PanelProps = { network: NetworkProduct; commit: Commit };
+type PanelProps = { network: NetworkProduct; commit: Commit; types: DataTypeOption[] };
 
 export function Switch({
   checked,
@@ -67,7 +67,7 @@ const td = "px-3 py-4 sm:px-5";
 const tableWrap = "overflow-x-auto rounded-2xl border border-gray-200 dark:border-white/10";
 const tableBody = "divide-y divide-gray-200 dark:divide-white/10";
 
-export function NetworkTypesPanel({ network, commit }: PanelProps) {
+export function NetworkTypesPanel({ network, types, commit }: PanelProps) {
   return (
     <section aria-labelledby="types-heading" className="max-w-xl">
       <h3 id="types-heading" className="font-[family-name:var(--font-display)] text-lg font-bold">
@@ -78,7 +78,7 @@ export function NetworkTypesPanel({ network, commit }: PanelProps) {
       </p>
 
       <ul className="mt-4 divide-y divide-gray-200 rounded-2xl border border-gray-200 dark:divide-white/10 dark:border-white/10">
-        {DATA_TYPES.map((type) => {
+        {types.map((type) => {
           const on = network.enabledTypes.includes(type.id);
           const planCount = network.plans.filter((p) => p.type === type.id).length;
           return (
@@ -182,13 +182,13 @@ export function AirtimeDiscountPanel({ network, commit }: PanelProps) {
   );
 }
 
-export function DataPlansPanel({ network, commit }: PanelProps) {
+export function DataPlansPanel({ network, types, commit }: PanelProps) {
   const [filter, setFilter] = useState("all");
   const visible = filter === "all" ? network.plans : network.plans.filter((p) => p.type === filter);
 
   const tabs = [
     { id: "all", label: `All (${network.plans.length})` },
-    ...DATA_TYPES.map((t) => ({
+    ...types.map((t) => ({
       id: t.id,
       label: `${t.label} (${network.plans.filter((p) => p.type === t.id).length})`,
     })),
@@ -205,7 +205,7 @@ export function DataPlansPanel({ network, commit }: PanelProps) {
 
       <Tabs label="Filter plans by network type" tabs={tabs} value={filter} onChange={setFilter} variant="pill">
         {visible.length === 0 ? (
-          <Empty title="No plans here" text={`There are no ${filter === "all" ? "" : `${typeLabel(filter as never)} `}plans yet.`} />
+          <Empty title="No plans here" text={`There are no ${filter === "all" ? "" : `${typeLabel(types, filter as never)} `}plans yet.`} />
         ) : (
           <div className={tableWrap}>
             <table className="w-full min-w-[34rem] text-sm">
@@ -227,7 +227,7 @@ export function DataPlansPanel({ network, commit }: PanelProps) {
                     </td>
                     <td className={td}>
                       <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold dark:bg-white/10">
-                        {typeLabel(p.type)}
+                        {typeLabel(types, p.type)}
                       </span>
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatNaira(p.cost)}</td>
@@ -237,7 +237,7 @@ export function DataPlansPanel({ network, commit }: PanelProps) {
                         <OnOff on={p.active} />
                         <Switch
                           checked={p.active}
-                          label={`${p.size} ${typeLabel(p.type)} plan on ${network.name}`}
+                          label={`${p.size} ${typeLabel(types, p.type)} plan on ${network.name}`}
                           onChange={(next) =>
                             commit(
                               { ...network, plans: network.plans.map((x) => (x.id === p.id ? { ...x, active: next } : x)) },

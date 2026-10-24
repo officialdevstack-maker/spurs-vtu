@@ -15,6 +15,7 @@ const validType = (id: string): id is DataType => DATA_TYPES.some((t) => t.id ==
 
 export async function setNetworkEnabled(network: string, enabled: boolean): Promise<ActionResult> {
   await requireAdmin();
+  void enabled;
   if (!validNetwork(network)) return BAD_INPUT;
   // TODO: update the network's enabled flag
   return { ok: true };
@@ -22,6 +23,7 @@ export async function setNetworkEnabled(network: string, enabled: boolean): Prom
 
 export async function setNetworkTypeEnabled(network: string, type: string, enabled: boolean): Promise<ActionResult> {
   await requireAdmin();
+  void enabled;
   if (!validNetwork(network) || !validType(type)) return BAD_INPUT;
   // TODO: enable or disable this network type for the network
   return { ok: true };
@@ -36,6 +38,7 @@ export async function saveAirtimeDiscount(network: string, percent: number): Pro
 
 export async function setPlanActive(network: string, planId: string, active: boolean): Promise<ActionResult> {
   await requireAdmin();
+  void active;
   if (!validNetwork(network) || !planId) return BAD_INPUT;
   // TODO: activate or deactivate the data plan
   return { ok: true };

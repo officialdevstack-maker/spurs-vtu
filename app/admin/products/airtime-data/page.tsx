@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { AirtimeDataManager } from "@/components/admin/airtime-data/manager";
-import { getAirtimeDataProducts } from "@/lib/admin/airtime-data";
+import { getAirtimeDataProducts } from "@/lib/db/airtime-data";
 
 export const metadata: Metadata = { title: "Airtime & data | Spur VTU" };
 
 export default async function AirtimeDataPage() {
-  const networks = await getAirtimeDataProducts();
+  await connection();
+  const { networks, types } = await getAirtimeDataProducts();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -16,7 +18,7 @@ export default async function AirtimeDataPage() {
         </p>
       </header>
 
-      <AirtimeDataManager networks={networks} />
+      <AirtimeDataManager networks={networks} types={types} />
     </div>
   );
 }

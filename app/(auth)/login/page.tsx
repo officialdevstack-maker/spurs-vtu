@@ -103,7 +103,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-sm text-[#8FA5A9]">© {new Date().getFullYear()} Spur VTU</p>
+        <p className="text-sm text-[#8FA5A9]">© 2025 Spur VTU</p>
       </aside>
 
       <section className="flex min-h-dvh flex-col px-6 py-8 sm:px-12 lg:px-16 lg:py-10">
