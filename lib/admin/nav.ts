@@ -1,4 +1,4 @@
-import { LayoutDashboard, Megaphone, Package, Users } from "lucide-react";
+import { CreditCard, LayoutDashboard, Megaphone, Network, Package, Users } from "lucide-react";
 import type { NavGroup } from "@/lib/nav";
 
 export const ADMIN_NAV: NavGroup[] = [
@@ -24,6 +24,14 @@ export const ADMIN_NAV: NavGroup[] = [
         ],
       },
       { label: "Announcement", href: "/admin/announcements", icon: Megaphone },
+    ],
+  },
+  {
+    id: "admin-gateways",
+    label: "Gateways",
+    items: [
+      { label: "Providers", href: "/admin/gateways/providers", icon: Network },
+      { label: "Payment", href: "/admin/gateways/payment", icon: CreditCard },
     ],
   },
 ];

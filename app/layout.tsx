@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const display = Familjen_Grotesk({
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en">
       <body className={`${display.variable} ${body.variable} ${geistMono.variable} min-h-full flex flex-col font-sans antialiased`}>
         {children}
+        <Toaster position="top-right" richColors closeButton theme="system" />
       </body>
     </html>
   );

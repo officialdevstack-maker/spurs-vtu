@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { AlertTriangle } from "lucide-react";
 import { AdminQuickLinks } from "@/components/admin/admin-quick-links";
 import { RecentActivity } from "@/components/admin/recent-activity";
@@ -9,7 +11,8 @@ import { formatLongDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Admin overview | Spur VTU" };
 
-export default async function AdminOverviewPage() {
+async function AdminOverviewContent() {
+  await connection();
   const data = await getAdminOverview();
   const { pending, failed } = data.attention;
   const needsAttention = pending + failed > 0;
@@ -49,5 +52,13 @@ export default async function AdminOverviewPage() {
 
       <AdminQuickLinks />
     </div>
+  );
+}
+
+export default function AdminOverviewPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading overview…</div>}>
+      <AdminOverviewContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { BalanceCards } from "@/components/dashboard/balance-card";
 import { PackageCard } from "@/components/dashboard/package-card";
@@ -13,11 +15,10 @@ import { SpursWallet } from "@spurs-cloud/wallet";
 import { createSpursClient } from "@spurs-cloud/accounts";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
+export const instant = false;
 
-// The greeting depends on the current time and the data is per user.
-// export const dynamic = "force-dynamic";
-
-export default async function DashboardPage() {
+async function DashboardContent() {
+  await connection();
   const data = await getDashboardData();
   const user = await getSpursUser();
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
@@ -66,6 +67,7 @@ export default async function DashboardPage() {
           </div>
           <Link
             href={spurs.accountUrl()}
+
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#12343B] px-5 text-sm font-semibold text-white outline-none transition-colors hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
           >
             Verify now
@@ -87,5 +89,13 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading dashboard…</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

@@ -1,45 +1,227 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import { DATA_TYPES, NETWORK_IDS, type DataType, type NetworkId } from "@/lib/admin/airtime-data";
+import { AIRTIME_DATA_PATH, SERVICES, slugify, type Service } from "@/lib/admin/airtime-data";
+import * as db from "@/lib/db/airtime-data";
+import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
-const BAD_INPUT: ActionResult = { ok: false, error: "That change isn't valid. Refresh the page and try again." };
+const fail = (error: string): ActionResult => ({ ok: false, error });
+const BAD_INPUT = fail("That change isn't valid. Refresh the page and try again.");
+const NOT_FOUND = fail("That item no longer exists. Refresh the page.");
 
-const validNetwork = (id: string): id is NetworkId => (NETWORK_IDS as readonly string[]).includes(id);
-const validType = (id: string): id is DataType => DATA_TYPES.some((t) => t.id === id);
+const clean = (value: unknown) =>
+  typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+const round2 = (value: number) => Math.round(value * 100) / 100;
+const validService = (value: string): value is Service => SERVICES.some((service) => service.id === value);
 
-/* Stubs: each one checks admin access and validates input, then returns ok.
-   Replace the TODO with your real database update (lib/db). */
+function dbError(error: unknown, fkMessage: string): ActionResult {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === "23505") return fail("That already exists. Try a different name.");
+  if (code === "23503") return fail(fkMessage);
+  if (code === "OVERLAP") return fail("That amount range overlaps another discount for this network and type.");
+  if (code === "BAD_TYPE") return fail("Pick an airtime network type.");
+  console.error("[airtime-data]", error);
+  return fail("Something went wrong saving that. Try again.");
+}
+
+async function run(
+  fn: () => Promise<boolean>,
+  options: { id?: string; fk?: string } = {},
+): Promise<ActionResult> {
+  try {
+    if (!(await fn())) return NOT_FOUND;
+    revalidatePath(AIRTIME_DATA_PATH);
+    return { ok: true, id: options.id };
+  } catch (error) {
+    return dbError(error, options.fk ?? "That is still in use, so it can't be changed.");
+  }
+}
+
+export async function createNetwork(name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const label = clean(name);
+  const id = slugify(label);
+  if (!label || label.length > 40 || !id) {
+    return fail("Enter a network name using letters or numbers, up to 40 characters.");
+  }
+  return run(() => db.createNetwork(id, label), { id });
+}
+
+export async function renameNetwork(network: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const label = clean(name);
+  if (!network || !label || label.length > 40) return fail("Enter a network name up to 40 characters.");
+  return run(() => db.renameNetwork(network, label));
+}
 
 export async function setNetworkEnabled(network: string, enabled: boolean): Promise<ActionResult> {
   await requireAdmin();
-  void enabled;
-  if (!validNetwork(network)) return BAD_INPUT;
-  // TODO: update the network's enabled flag
-  return { ok: true };
+  if (!network || typeof enabled !== "boolean") return BAD_INPUT;
+  return run(() => db.setNetworkEnabled(network, enabled));
 }
 
-export async function setNetworkTypeEnabled(network: string, type: string, enabled: boolean): Promise<ActionResult> {
+export async function removeNetwork(network: string): Promise<ActionResult> {
   await requireAdmin();
-  void enabled;
-  if (!validNetwork(network) || !validType(type)) return BAD_INPUT;
-  // TODO: enable or disable this network type for the network
-  return { ok: true };
+  if (!network) return BAD_INPUT;
+  return run(() => db.deleteNetwork(network));
 }
 
-export async function saveAirtimeDiscount(network: string, percent: number): Promise<ActionResult> {
+export async function createDataType(label: string, service: string): Promise<ActionResult> {
   await requireAdmin();
-  if (!validNetwork(network) || !Number.isFinite(percent) || percent < 0 || percent > 100) return BAD_INPUT;
-  // TODO: save the airtime discount percent
-  return { ok: true };
+  const name = clean(label);
+  const slug = slugify(name);
+  if (!validService(service)) return fail("Choose airtime or data.");
+  if (!name || name.length > 20 || !slug) {
+    return fail("Enter a type name using letters or numbers, up to 20 characters.");
+  }
+  const id = `${service}-${slug}`;
+  return run(() => db.createDataType(id, name, service), { id });
+}
+
+export async function renameDataType(type: string, label: string): Promise<ActionResult> {
+  await requireAdmin();
+  const name = clean(label);
+  if (!type || !name || name.length > 20) return fail("Enter a type name up to 20 characters.");
+  return run(() => db.renameDataType(type, name));
+}
+
+export async function removeDataType(type: string): Promise<ActionResult> {
+  await requireAdmin();
+  if (!type) return BAD_INPUT;
+  return run(() => db.deleteDataType(type), {
+    fk: "Plans or discounts still use this type. Remove or change those first.",
+  });
+}
+
+export async function setNetworkTypeEnabled(
+  network: string,
+  type: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (!network || !type || typeof enabled !== "boolean") return BAD_INPUT;
+  return run(() => db.setNetworkTypeEnabled(network, type, enabled), {
+    fk: "That network or type no longer exists. Refresh the page.",
+  });
+}
+
+function parsePlan(input: unknown): PlanFields | null {
+  if (!input || typeof input !== "object") return null;
+  const plan = input as Partial<PlanFields>;
+  const type = clean(plan.type);
+  const size = clean(plan.size);
+  const validity = clean(plan.validity);
+  if (!type || !size || size.length > 30 || !validity || validity.length > 30) return null;
+  if (
+    typeof plan.cost !== "number" ||
+    !Number.isFinite(plan.cost) ||
+    plan.cost < 0 ||
+    plan.cost > 10_000_000 ||
+    typeof plan.price !== "number" ||
+    !Number.isFinite(plan.price) ||
+    plan.price < 0 ||
+    plan.price > 10_000_000 ||
+    typeof plan.active !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    type,
+    size,
+    validity,
+    cost: round2(plan.cost),
+    price: round2(plan.price),
+    active: plan.active,
+  };
+}
+
+const PLAN_FK = "That network or type no longer exists. Refresh the page.";
+
+export async function createPlan(network: string, input: PlanFields): Promise<ActionResult> {
+  await requireAdmin();
+  const plan = parsePlan(input);
+  if (!network || !plan) return fail("Check the plan details and try again.");
+  return run(() => db.createPlan(network, plan), { fk: PLAN_FK });
+}
+
+export async function updatePlan(network: string, planId: string, input: PlanFields): Promise<ActionResult> {
+  await requireAdmin();
+  const plan = parsePlan(input);
+  if (!network || !planId || !plan) return fail("Check the plan details and try again.");
+  return run(() => db.updatePlan(network, planId, plan), { fk: PLAN_FK });
 }
 
 export async function setPlanActive(network: string, planId: string, active: boolean): Promise<ActionResult> {
   await requireAdmin();
-  void active;
-  if (!validNetwork(network) || !planId) return BAD_INPUT;
-  // TODO: activate or deactivate the data plan
-  return { ok: true };
+  if (!network || !planId || typeof active !== "boolean") return BAD_INPUT;
+  return run(() => db.setPlanActive(network, planId, active));
+}
+
+export async function removePlan(network: string, planId: string): Promise<ActionResult> {
+  await requireAdmin();
+  if (!network || !planId) return BAD_INPUT;
+  return run(() => db.deletePlan(network, planId));
+}
+
+function parseDiscount(input: unknown): DiscountFields | null {
+  if (!input || typeof input !== "object") return null;
+  const discount = input as Partial<DiscountFields>;
+  const type = clean(discount.type);
+  if (!type) return null;
+  if (
+    typeof discount.min !== "number" ||
+    !Number.isFinite(discount.min) ||
+    discount.min < 0 ||
+    discount.min > 10_000_000 ||
+    typeof discount.max !== "number" ||
+    !Number.isFinite(discount.max) ||
+    discount.max < discount.min ||
+    discount.max > 10_000_000 ||
+    typeof discount.discount !== "number" ||
+    !Number.isFinite(discount.discount) ||
+    discount.discount < 0 ||
+    discount.discount > 100 ||
+    typeof discount.active !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    type,
+    min: round2(discount.min),
+    max: round2(discount.max),
+    discount: round2(discount.discount),
+    active: discount.active,
+  };
+}
+
+const DISCOUNT_BAD = fail("Check the discount details and try again.");
+const DISCOUNT_FK = "That network or type no longer exists. Refresh the page.";
+
+export async function createDiscount(network: string, input: DiscountFields): Promise<ActionResult> {
+  await requireAdmin();
+  const discount = parseDiscount(input);
+  if (!network || !discount) return DISCOUNT_BAD;
+  return run(() => db.createDiscount(network, discount), { fk: DISCOUNT_FK });
+}
+
+export async function updateDiscount(network: string, id: string, input: DiscountFields): Promise<ActionResult> {
+  await requireAdmin();
+  const discount = parseDiscount(input);
+  if (!network || !id || !discount) return DISCOUNT_BAD;
+  return run(() => db.updateDiscount(network, id, discount), { fk: DISCOUNT_FK });
+}
+
+export async function setDiscountActive(network: string, id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  if (!network || !id || typeof active !== "boolean") return BAD_INPUT;
+  return run(() => db.setDiscountActive(network, id, active));
+}
+
+export async function removeDiscount(network: string, id: string): Promise<ActionResult> {
+  await requireAdmin();
+  if (!network || !id) return BAD_INPUT;
+  return run(() => db.deleteDiscount(network, id));
 }

@@ -1,8 +1,22 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requireAdmin } from "@/lib/admin/auth";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-gray-600 dark:text-[#9FB3B7]" role="status" aria-live="polite">
+          Loading admin workspace...
+        </div>
+      }
+    >
+      <AuthenticatedAdminShell>{children}</AuthenticatedAdminShell>
+    </Suspense>
+  );
+}
+
+async function AuthenticatedAdminShell({ children }: { children: ReactNode }) {
   const user = await requireAdmin();
   const username = "username" in user && typeof user.username === "string" ? user.username : undefined;
 
