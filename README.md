@@ -30,7 +30,7 @@ access is denied to everyone.
 
 Set `DATABASE_URL` in `.env` to the dedicated VTU PostgreSQL connection string.
 Use `.env.example` as a template and keep the real URL private. Server-side
-database access is available through `getDb` and `checkDatabaseConnection` in
+database access is available through `getPool` and `checkDatabaseConnection` in
 `lib/db`; the connection pool is created lazily on first use.
 
 ## Learn More

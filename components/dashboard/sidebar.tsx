@@ -25,8 +25,10 @@ const R_CENTER = "lg:group-data-[collapsed=true]/side:justify-center";
 const R_NOPX = "lg:group-data-[collapsed=true]/side:px-0";
 const R_PX3 = "lg:group-data-[collapsed=true]/side:px-3";
 const R_ONECOL = "lg:group-data-[collapsed=true]/side:grid-cols-1";
+const R_FLEX = "lg:group-data-[collapsed=true]/side:flex";
 
 const GROUPS_KEY = "spur-nav-groups";
+const ITEMS_KEY = "spur-nav-items";
 
 export function Wordmark({ textClassName = "", suffix }: { textClassName?: string; suffix?: string }) {
   return (
@@ -104,6 +106,32 @@ export function Sidebar({
       return next;
     });
   }
+
+  // Which parent items (e.g. Products) the person has opened or closed. Remembered across visits.
+  // Until toggled by hand, an item is open whenever one of its children is the current page.
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ITEMS_KEY);
+      if (raw) setOpenItems(JSON.parse(raw));
+    } catch {}
+  }, []);
+  function toggleItem(href: string, isOpen: boolean) {
+    setOpenItems((current) => {
+      const next = { ...current, [href]: !isOpen };
+      try {
+        localStorage.setItem(ITEMS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  const linkClass = (active: boolean) =>
+    `relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${R_CENTER} ${R_NOPX} ${
+      active
+        ? "bg-white font-medium shadow-sm ring-1 ring-gray-200 dark:bg-white/10 dark:ring-white/10"
+        : "text-gray-600 hover:bg-gray-200/70 hover:text-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white"
+    }`;
 
   // Theme toggle: flips the `dark` class on <html> and remembers the choice.
   const [dark, setDark] = useState(false);
@@ -213,28 +241,103 @@ export function Sidebar({
 
               {/* The rail always shows every icon, even for a group that is closed. */}
               <ul id={listId} hidden={closed} className={`space-y-0.5 ${R_SHOW}`}>
-                {group.items.map(({ label, href, icon: Icon, exact }) => {
-                  const active = isActive(href, exact);
+                {group.items.map((item) => {
+                  const { label, href, icon: Icon, exact, children } = item;
+
+                  // Plain link (no children)
+                  if (!children?.length) {
+                    const active = isActive(href, exact);
+                    return (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          onClick={onNavigate}
+                          title={collapsed ? label : undefined}
+                          aria-current={active ? "page" : undefined}
+                          className={linkClass(active)}
+                        >
+                          {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r bg-[#F2B632]" />}
+                          <Icon
+                            aria-hidden="true"
+                            className={`size-5 shrink-0 ${active ? "text-[#1E8E4F] dark:text-[#4CC38A]" : ""}`}
+                          />
+                          <span className={R_SR}>{label}</span>
+                        </Link>
+                      </li>
+                    );
+                  }
+
+                  // Parent with children
+                  const hasActive = isActive(href) || children.some((child) => isActive(child.href, child.exact));
+                  const expanded = openItems[href] ?? hasActive;
+                  const subId = `nav-sub-${href.replace(/\W+/g, "-")}`;
                   return (
                     <li key={href}>
+                      {/* Full sidebar: toggles the sub-list */}
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(href, expanded)}
+                        aria-expanded={expanded}
+                        aria-controls={subId}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[15px] outline-none transition-colors hover:bg-gray-200/70 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:hover:bg-white/5 dark:focus-visible:ring-[#F2B632] ${R_HIDE} ${
+                          hasActive
+                            ? "font-medium text-[#12343B] dark:text-white"
+                            : "text-gray-600 hover:text-[#12343B] dark:text-[#9FB3B7] dark:hover:text-white"
+                        }`}
+                      >
+                        <Icon
+                          aria-hidden="true"
+                          className={`size-5 shrink-0 ${hasActive ? "text-[#1E8E4F] dark:text-[#4CC38A]" : ""}`}
+                        />
+                        <span className="flex-1">{label}</span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`size-4 transition-transform motion-reduce:transition-none ${expanded ? "" : "-rotate-90"}`}
+                        />
+                      </button>
+
+                      {/* Icon rail: no room for a sub-list, so the icon links to the parent page */}
                       <Link
                         href={href}
                         onClick={onNavigate}
-                        title={collapsed ? label : undefined}
-                        aria-current={active ? "page" : undefined}
-                        className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${R_CENTER} ${R_NOPX} ${
-                          active
-                            ? "bg-white font-medium shadow-sm ring-1 ring-gray-200 dark:bg-white/10 dark:ring-white/10"
-                            : "text-gray-600 hover:bg-gray-200/70 hover:text-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white"
-                        }`}
+                        title={label}
+                        aria-current={isActive(href, true) ? "page" : undefined}
+                        className={`hidden ${R_FLEX} ${linkClass(hasActive)}`}
                       >
-                        {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r bg-[#F2B632]" />}
+                        {hasActive && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r bg-[#F2B632]" />}
                         <Icon
                           aria-hidden="true"
-                          className={`size-5 shrink-0 ${active ? "text-[#1E8E4F] dark:text-[#4CC38A]" : ""}`}
+                          className={`size-5 shrink-0 ${hasActive ? "text-[#1E8E4F] dark:text-[#4CC38A]" : ""}`}
                         />
-                        <span className={R_SR}>{label}</span>
+                        <span className="sr-only">{label}</span>
                       </Link>
+
+                      <ul
+                        id={subId}
+                        hidden={!expanded}
+                        className={`ml-[1.625rem] mt-0.5 space-y-0.5 border-l border-gray-200 pl-3 dark:border-white/10 ${R_HIDE}`}
+                      >
+                        {children.map((child) => {
+                          const childActive = isActive(child.href, child.exact);
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                onClick={onNavigate}
+                                aria-current={childActive ? "page" : undefined}
+                                className={`relative flex items-center rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors hover:bg-gray-200/70 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:hover:bg-white/5 dark:focus-visible:ring-[#F2B632] ${
+                                  childActive
+                                    ? "font-medium text-[#12343B] dark:text-white"
+                                    : "text-gray-600 hover:text-[#12343B] dark:text-[#9FB3B7] dark:hover:text-white"
+                                }`}
+                              >
+                                {childActive && <span aria-hidden="true" className="absolute inset-y-1 left-0 w-1 rounded-r bg-[#F2B632]" />}
+                                <span className="truncate">{child.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </li>
                   );
                 })}
