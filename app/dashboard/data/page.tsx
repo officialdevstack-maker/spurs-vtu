@@ -8,6 +8,7 @@ import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Buy data | Spur VTU" };
+export const instant = false;
 
 export default async function BuyDataPage() {
   await connection();

@@ -9,9 +9,10 @@ import { QuickServices } from "@/components/dashboard/quick-services";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SpendSummary } from "@/components/dashboard/spend-summary";
 import { getDashboardData } from "@/lib/dashboard-data";
+import { getRecentTransactions } from "@/lib/db/transactions";
 import { formatLongDate, greetingFor } from "@/lib/format";
+import { getNairaBalance } from "@/lib/wallet";
 import { getSpursUser } from "@spurs-cloud/accounts/next";
-import { SpursWallet } from "@spurs-cloud/wallet";
 import { createSpursClient } from "@spurs-cloud/accounts";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
@@ -19,16 +20,15 @@ export const instant = false;
 
 async function DashboardContent() {
   await connection();
-  const data = await getDashboardData();
-  const user = await getSpursUser();
+  const [data, user] = await Promise.all([getDashboardData(), getSpursUser()]);
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
-  const spurs = createSpursClient();   // issuer built in, secret from env
+  const spurs = createSpursClient();
   const now = new Date();
 
-  const wallet = new SpursWallet();               // secret from INTERNAL_API_SECRET
-  const ngnBal = await wallet.balanceOf(user?.sub as string, "NGN")
-
+  const [balance, transactions] = user
+    ? await Promise.all([getNairaBalance(user.sub), getRecentTransactions(user.sub)])
+    : [null, []];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -67,7 +67,6 @@ async function DashboardContent() {
           </div>
           <Link
             href={spurs.accountUrl()}
-
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#12343B] px-5 text-sm font-semibold text-white outline-none transition-colors hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
           >
             Verify now
@@ -75,13 +74,13 @@ async function DashboardContent() {
         </div>
       )}
 
-      <BalanceCards wallet={ngnBal} bonus={data.bonus.balance} />
+      <BalanceCards wallet={balance} bonus={data.bonus.balance} />
 
       <QuickServices />
 
       <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="min-w-0">
-          <RecentTransactions transactions={data.transactions} />
+          <RecentTransactions transactions={transactions} />
         </div>
         <div className="min-w-0 space-y-8">
           <PackageCard pkg={data.package} />
@@ -94,7 +93,7 @@ async function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading dashboard…</div>}>
+    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading dashboard?</div>}>
       <DashboardContent />
     </Suspense>
   );

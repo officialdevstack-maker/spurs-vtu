@@ -7,7 +7,7 @@ import { formatNaira } from "@/lib/format";
 
 const HIDE_KEY = "spur-hide-balance";
 
-export function BalanceCards({ wallet, bonus }: { wallet: string; bonus: number }) {
+export function BalanceCards({ wallet, bonus }: { wallet: number | null; bonus: number }) {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
@@ -25,7 +25,10 @@ export function BalanceCards({ wallet, bonus }: { wallet: string; bonus: number 
     });
   }
 
-  const show = (n: string | number) => (hidden ? "₦ ••••••" : formatNaira(typeof n === "number" ? n : parseFloat(n)));
+  const show = (n: string | number | null) => {
+    if (n === null) return "Unavailable";
+    return hidden ? "₦ ••••••" : formatNaira(typeof n === "number" ? n : parseFloat(n));
+  };
 
   return (
     <section aria-label="Balances" className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

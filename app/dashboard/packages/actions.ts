@@ -5,22 +5,11 @@ import { revalidatePath } from "next/cache";
 import { requireSpursUser } from "@spurs-cloud/accounts/next";
 import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
 import { changeCustomerPackage, getCustomerPackage, getPackage } from "@/lib/db/packages";
+import { debitWallet } from "@/lib/wallet";
 
 export type UpgradeResult = { ok: true } | { ok: false; error: string };
 
 const fail = (error: string): UpgradeResult => ({ ok: false, error });
-
-/**
- * TODO: connect this to your SpursWallet debit call. It must take `amount` (NGN) off the
- * customer's wallet using `reference` so a retry can't charge twice, and return true only
- * if the money was taken. Until then paid upgrades fail safely and nobody is charged.
- */
-async function debitWallet(customerId: string, amount: number, reference: string): Promise<boolean> {
-  void customerId;
-  void amount;
-  void reference;
-  return false;
-}
 
 export async function upgradePackage(packageId: string): Promise<UpgradeResult> {
   const user = await requireSpursUser();

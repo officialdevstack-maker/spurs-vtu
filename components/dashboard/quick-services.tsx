@@ -2,8 +2,8 @@ import Link from "next/link";
 import { History, LayoutGrid, Smartphone, Tv, Wifi, Zap, type LucideIcon } from "lucide-react";
 
 const SERVICES: { label: string; href: string; icon: LucideIcon }[] = [
-  { label: "Data", href: "/data", icon: Wifi },
-  { label: "Airtime", href: "/airtime", icon: Smartphone },
+  { label: "Data", href: "/dashboard/data", icon: Wifi },
+  { label: "Airtime", href: "/dashboard/airtime", icon: Smartphone },
   { label: "Cable TV", href: "/cable-tv", icon: Tv },
   { label: "Electricity", href: "/electricity", icon: Zap },
   { label: "History", href: "/transactions", icon: History },
@@ -25,7 +25,6 @@ export function QuickServices() {
         </Link>
       </div>
 
-      {/* One bordered strip with hairline dividers, not six separate cards. */}
       <ul className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-gray-200 bg-gray-200 dark:border-white/10 dark:bg-white/10 sm:grid-cols-6">
         {SERVICES.map(({ label, href, icon: Icon }) => (
           <li key={label} className="bg-white dark:bg-[#0B1B1F]">

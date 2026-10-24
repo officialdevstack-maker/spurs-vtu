@@ -14,7 +14,7 @@ import {
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { formatNaira } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
-import { callProviderEndpoint } from "@/lib/providers/call";
+import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
 import { creditWallet, debitWallet, getNairaBalance } from "@/lib/wallet";
 
@@ -26,10 +26,6 @@ const NO_PAYMENT = "We couldn't take payment from your wallet. Check your balanc
 const REJECTED = "The network couldn't deliver this plan.";
 
 const fail = (error: string): PurchaseResult => ({ ok: false, error });
-
-const neverSent = (error: unknown) =>
-  error instanceof Error &&
-  (error.message.startsWith("Missing value for") || error.message.startsWith("Provider is off"));
 
 async function refund(customerId: string, amount: number, reference: string): Promise<boolean> {
   try {
@@ -124,8 +120,7 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   try {
     await markDebited(reference);
   } catch (error) {
-    console.error("[data-purchase] Wallet debited but transaction update failed", reference, error);
-    return fail("Your payment status is being checked. Check your history and wallet before trying again.");
+    console.error("[data-purchase] Wallet debited but could not set debited flag", reference, error);
   }
 
   let outcome: Outcome = "pending";
@@ -142,7 +137,7 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
     response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
   } catch (error) {
     response = error instanceof Error ? error.message : "Provider call failed";
-    outcome = neverSent(error) ? "failed" : "pending";
+    outcome = error instanceof NotSentError ? "failed" : "pending";
     console.error("[data-purchase] Provider call did not complete", reference, error);
   }
 
