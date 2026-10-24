@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
-import { Bell, ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Moon, MoreVertical, PanelLeftClose, PanelLeftOpen, Sun, X } from "lucide-react";
 import { NAV, type NavGroup } from "@/lib/nav";
 
 export type SidebarUser = { name: string; username?: string; email?: string; picture?: string | null };
@@ -24,7 +24,6 @@ const R_SR = "lg:group-data-[collapsed=true]/side:sr-only";
 const R_CENTER = "lg:group-data-[collapsed=true]/side:justify-center";
 const R_NOPX = "lg:group-data-[collapsed=true]/side:px-0";
 const R_PX3 = "lg:group-data-[collapsed=true]/side:px-3";
-const R_ONECOL = "lg:group-data-[collapsed=true]/side:grid-cols-1";
 const R_FLEX = "lg:group-data-[collapsed=true]/side:flex";
 
 const GROUPS_KEY = "spur-nav-groups";
@@ -50,9 +49,6 @@ export function Wordmark({ textClassName = "", suffix }: { textClassName?: strin
     </div>
   );
 }
-
-const iconButton =
-  "relative grid h-10 w-full place-items-center rounded-lg bg-white text-gray-600 ring-1 ring-gray-200 outline-none transition-colors hover:text-[#12343B] hover:ring-gray-300 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-white/5 dark:text-[#9FB3B7] dark:ring-white/10 dark:hover:text-white dark:focus-visible:ring-[#F2B632]";
 
 export function Sidebar({
   user,
@@ -348,7 +344,7 @@ export function Sidebar({
       </nav>
 
       <div className={`shrink-0 space-y-3 border-t border-gray-200 p-4 dark:border-white/10 ${R_PX3}`}>
-        <div className={`flex items-center gap-3 ${R_CENTER}`}>
+        <div className={`flex min-w-0 items-center gap-3 ${R_CENTER}`}>
           <span className="relative shrink-0">
             {user.picture ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -363,45 +359,57 @@ export function Sidebar({
               className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full bg-[#1E8E4F] ring-2 ring-gray-100 dark:bg-[#4CC38A] dark:ring-[#10262B]"
             />
           </span>
-          <div className={`min-w-0 ${R_HIDE}`}>
+          <div className={`min-w-0 flex-1 ${R_HIDE}`}>
             <p className="truncate text-sm font-medium">{user.name}</p>
-            {user.username && <p className="truncate text-xs text-gray-500 dark:text-[#8FA5A9]">@{user.username}</p>}
             {user.email && <p className="truncate text-xs text-gray-500 dark:text-[#8FA5A9]">{user.email}</p>}
           </div>
-        </div>
-
-        <div className={`grid ${showNotifications ? "grid-cols-3" : "grid-cols-2"} gap-2 ${R_ONECOL}`}>
-          {showNotifications && (
-            <Link
-              href={notificationsHref}
-              onClick={onNavigate}
-              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-              title="Notifications"
-              className={iconButton}
+          <details className="group/more relative shrink-0">
+            <summary
+              aria-label="Show more"
+              title="Show more"
+              className="grid size-10 cursor-pointer list-none place-items-center rounded-lg text-gray-600 outline-none transition-colors hover:bg-gray-200/70 hover:text-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-[#F2B632] [&::-webkit-details-marker]:hidden"
             >
-              <Bell className="size-5" aria-hidden="true" />
-              {unreadCount > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#F2B632] px-1 text-[10px] font-bold leading-none text-[#12343B]"
-                >
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
+              <MoreVertical className="size-5" aria-hidden="true" />
+            </summary>
+            <div className="absolute bottom-full right-0 z-50 mb-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-[#10262B]">
+              {user.username && (
+                <p className="truncate px-3 py-2 text-xs text-gray-500 dark:text-[#8FA5A9]">@{user.username}</p>
               )}
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-            title={dark ? "Light mode" : "Dark mode"}
-            className={iconButton}
-          >
-            {dark ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
-          </button>
-          <a href={signOutHref} aria-label="Log out" title="Log out" className={iconButton}>
-            <LogOut className="size-5" aria-hidden="true" />
-          </a>
+              {showNotifications && (
+                <Link
+                  href={notificationsHref}
+                  onClick={onNavigate}
+                  className="relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-[#F2B632]"
+                >
+                  <Bell className="size-5" aria-hidden="true" />
+                  Notifications
+                  {unreadCount > 0 && (
+                    <span className="ml-auto rounded-full bg-[#F2B632] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#12343B]">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                      <span className="sr-only"> unread</span>
+                    </span>
+                  )}
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-[#F2B632]"
+              >
+                {dark ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
+                {dark ? "Switch to light mode" : "Switch to dark mode"}
+              </button>
+              <div className="my-2 border-t border-gray-200 dark:border-white/10" />
+              <a
+                href={signOutHref}
+                onClick={onNavigate}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-[#F2B632]"
+              >
+                <LogOut className="size-5" aria-hidden="true" />
+                Log out
+              </a>
+            </div>
+          </details>
         </div>
       </div>
     </aside>

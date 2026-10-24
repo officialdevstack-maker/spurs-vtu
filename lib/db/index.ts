@@ -24,7 +24,7 @@ function secureConnectionString(connectionString: string): string {
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new Error("DATABASE_URL must be a PostgreSQL connection URL.");
   }
-  url.searchParams.set("sslmode", "require");
+  url.searchParams.set("sslmode", "verify-full");
   return url.toString();
 }
 
