@@ -107,7 +107,7 @@ export function EndpointDialog({
           <Field
             id={`${base}-body`}
             label="Body template"
-            hint="Placeholders: {phone} {amount} {network} {plan} {reference} {meter} {decoder}"
+            hint="Placeholders: {phone} {amount} {network} {plan} {type} {reference} {meter} {decoder}"
           >
             <textarea
               id={`${base}-body`}
