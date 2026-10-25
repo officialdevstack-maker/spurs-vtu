@@ -14,8 +14,8 @@ export function StatCards({ data }: { data: AdminOverview }) {
     },
     {
       label: "Wallet float",
-      value: formatNaira(data.walletFloat),
-      note: "Held across all wallets",
+      value: data.walletFloat === null ? "Unavailable" : formatNaira(data.walletFloat),
+      note: data.walletFloat === null ? "Total across wallets isn't connected" : "Held across all wallets",
       icon: Landmark,
     },
     {
@@ -27,7 +27,10 @@ export function StatCards({ data }: { data: AdminOverview }) {
     {
       label: "Transactions today",
       value: formatNumber(data.today.transactions),
-      note: `${(data.today.successRate * 100).toFixed(1)}% successful`,
+      note:
+        data.today.transactions === 0
+          ? "No purchases yet today"
+          : `${(data.today.successRate * 100).toFixed(1)}% of settled orders successful`,
       icon: Receipt,
     },
   ];

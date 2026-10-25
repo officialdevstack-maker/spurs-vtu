@@ -6,7 +6,7 @@ import { AdminQuickLinks } from "@/components/admin/admin-quick-links";
 import { RecentActivity } from "@/components/admin/recent-activity";
 import { RevenueByService } from "@/components/admin/revenue-by-service";
 import { StatCards } from "@/components/admin/stat-cards";
-import { getAdminOverview } from "@/lib/admin/overview-data";
+import { getAdminOverview } from "@/lib/db/admin-overview";
 import { formatLongDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Admin overview | Spur VTU" };
@@ -33,7 +33,7 @@ async function AdminOverviewContent() {
           <div>
             <p className="font-semibold text-[#12343B] dark:text-[#EEF3F4]">Some transactions need a look</p>
             <p className="mt-1 text-sm text-[#5C4A12] dark:text-[#D9C48A]">
-              {pending} pending and {failed} failed in the latest activity. Check them below and refund or retry where needed.
+              {pending} pending and {failed} failed in the last 24 hours. Open the transaction history to refund or retry where needed.
             </p>
           </div>
         </div>
