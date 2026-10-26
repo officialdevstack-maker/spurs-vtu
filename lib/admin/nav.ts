@@ -1,4 +1,4 @@
-import { Calculator, LayoutDashboard, Megaphone, Network, Package, Receipt, Users } from "lucide-react";
+import { Calculator, LayoutDashboard, Megaphone, Network, Package, Receipt, Users, Webhook } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
 import type { NavGroup } from "@/lib/nav";
 
@@ -46,6 +46,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Gateways",
     items: [
       { label: "Providers", href: "/admin/gateways/providers", icon: Network, permission: "gateways.manage" },
+      { label: "Webhooks", href: "/admin/gateways/webhooks", icon: Webhook, permission: "settings.manage" },
     ],
   },
   {

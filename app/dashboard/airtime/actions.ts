@@ -14,6 +14,7 @@ import {
 } from "@/lib/db/transactions";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { formatNaira, formatNumber } from "@/lib/format";
+import { networkMismatchMessage } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
 import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
@@ -49,7 +50,8 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return fail(INVALID);
 
-  const { networkId, typeId, amount, phone, reference } = input as Record<string, unknown>;
+  const { networkId, typeId, amount, phone, reference, skipNetworkCheck } = input as Record<string, unknown>;
+  const allowMismatch = skipNetworkCheck === true;
   if (
     typeof networkId !== "string" ||
     !networkId ||
@@ -83,6 +85,9 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
 
   const quote = await getAirtimeQuote(networkId, typeId, amount);
   if (!quote) return fail(UNAVAILABLE);
+
+  const mismatchError = !allowMismatch ? networkMismatchMessage(phone, networkId, quote.networkName) : null;
+  if (mismatchError) return fail(mismatchError);
 
   const price = airtimePrice(amount, quote.discount);
   if (!Number.isFinite(price) || price <= 0) return fail(UNAVAILABLE);

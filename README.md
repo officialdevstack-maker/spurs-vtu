@@ -39,6 +39,18 @@ to a dedicated, randomly generated 32-byte base64 key before saving provider
 secrets. Keep this key private and back it up securely; changing it makes
 previously encrypted provider secrets unreadable.
 
+## Provider webhooks
+
+Run `npm run db:migrate` to add per-provider callback tokens and callback history.
+Set `APP_URL` to the public HTTPS origin (without a trailing slash) and configure
+`CRON_SECRET` with at least 32 random characters (for example, generate a
+32-byte hex value with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+Give providers the callback
+URL shown on **Admin → Gateways → Webhooks** and configure a scheduled HTTP GET
+to `/api/cron/fail-pending` with the header
+`Authorization: Bearer <CRON_SECRET>`. Auto-fail is disabled until enabled on
+that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

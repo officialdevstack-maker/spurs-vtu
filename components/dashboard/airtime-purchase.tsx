@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Tabs } from "@/components/admin/tabs";
 import { Field, FormError, Modal, btnGhost, btnPrimary, inputClass } from "@/components/admin/modal";
+import { NetworkCheck } from "@/components/dashboard/network-check";
 import { QUICK_AMOUNTS, airtimePrice, findRange, type AirtimeCatalogNetwork } from "@/lib/airtime-purchase";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { formatNaira } from "@/lib/format";
+import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseAirtime } from "@/app/dashboard/airtime/actions";
 
@@ -36,6 +38,7 @@ export function AirtimePurchase({
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState(normalizePhone(defaultPhone ?? ""));
   const [errors, setErrors] = useState<Errors>({});
+  const [bypassKey, setBypassKey] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
@@ -55,9 +58,13 @@ export function AirtimePurchase({
   const lowest = ranges.length ? Math.min(...ranges.map((item) => item.min)) : 0;
   const highest = ranges.length ? Math.max(...ranges.map((item) => item.max)) : 0;
   const quick = QUICK_AMOUNTS.filter((value) => findRange(ranges, value));
+  const checkKey = `${phone}:${network?.id ?? ""}`;
+  const skipCheck = bypassKey === checkKey;
+  const mismatch = checkNetwork(phone, network?.id ?? "").status === "mismatch";
 
   function chooseNetwork(id: string) {
     setNetworkId(id);
+    setBypassKey("");
     setErrors((previous) => ({ ...previous, amount: undefined }));
   }
 
@@ -81,7 +88,11 @@ export function AirtimePurchase({
           ? `Enter an amount from ${formatNaira(lowest)} to ${formatNaira(highest)}.`
           : "That amount isn't available. Try a different one.";
     }
-    if (!PHONE_PATTERN.test(phone)) next.phone = "Enter the 11-digit phone number, like 0803 123 4567.";
+    if (!PHONE_PATTERN.test(phone)) {
+      next.phone = "Enter the 11-digit phone number, like 0803 123 4567.";
+    } else if (mismatch && !skipCheck) {
+      next.phone = `That number doesn't look like a ${network.name} number. Switch network, or tick the box below to continue.`;
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -101,6 +112,7 @@ export function AirtimePurchase({
             amount: amountValue,
             phone,
             reference,
+            skipNetworkCheck: skipCheck,
           }),
         );
       } catch (cause) {
@@ -227,6 +239,19 @@ export function AirtimePurchase({
           className={`${inputClass(!!errors.phone)} tabular-nums`}
         />
       </Field>
+
+      <NetworkCheck
+        phone={phone}
+        networkId={network.id}
+        networkName={network.name}
+        available={networks}
+        bypass={skipCheck}
+        onBypass={(next) => setBypassKey(next ? checkKey : "")}
+        onSwitch={(id) => {
+          chooseNetwork(id);
+          setBypassKey("");
+        }}
+      />
 
       <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-baseline justify-between gap-4">

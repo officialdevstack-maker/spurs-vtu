@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Tabs } from "@/components/admin/tabs";
 import { Field, FormError, Modal, btnGhost, btnPrimary, inputClass } from "@/components/admin/modal";
+import { NetworkCheck } from "@/components/dashboard/network-check";
 import type { CatalogNetwork, PurchaseResult } from "@/lib/data-purchase";
 import { formatNaira } from "@/lib/format";
+import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseData } from "@/app/dashboard/data/actions";
 
@@ -35,6 +37,7 @@ export function DataPurchase({
   const [planId, setPlanId] = useState("");
   const [phone, setPhone] = useState(normalizePhone(defaultPhone ?? ""));
   const [errors, setErrors] = useState<Errors>({});
+  const [bypassKey, setBypassKey] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
@@ -47,10 +50,14 @@ export function DataPurchase({
   const selected = plans.find((plan) => plan.id === planId) ?? null;
   const typeLabel = types.find((type) => type.id === activeType)?.label ?? "";
   const short = selected !== null && balance !== null && selected.price > balance;
+  const checkKey = `${phone}:${network?.id ?? ""}`;
+  const skipCheck = bypassKey === checkKey;
+  const mismatch = checkNetwork(phone, network?.id ?? "").status === "mismatch";
 
   function chooseNetwork(id: string) {
     setNetworkId(id);
     setPlanId("");
+    setBypassKey("");
     setErrors((previous) => ({ ...previous, plan: undefined }));
   }
 
@@ -62,7 +69,11 @@ export function DataPurchase({
   function review() {
     const next: Errors = {};
     if (!selected) next.plan = "Choose a data plan.";
-    if (!PHONE_PATTERN.test(phone)) next.phone = "Enter the 11-digit phone number, like 0803 123 4567.";
+    if (!PHONE_PATTERN.test(phone)) {
+      next.phone = "Enter the 11-digit phone number, like 0803 123 4567.";
+    } else if (mismatch && !skipCheck) {
+      next.phone = `That number doesn't look like a ${network.name} number. Switch network, or tick the box below to continue.`;
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -75,7 +86,7 @@ export function DataPurchase({
     if (pending || !selected) return;
     startTransition(async () => {
       try {
-        setResult(await purchaseData({ planId: selected.id, phone, reference }));
+        setResult(await purchaseData({ planId: selected.id, phone, reference, skipNetworkCheck: skipCheck }));
       } catch (cause) {
         console.error("[data-purchase] Request failed", cause);
         setResult({
@@ -188,6 +199,19 @@ export function DataPurchase({
           className={`${inputClass(!!errors.phone)} tabular-nums`}
         />
       </Field>
+
+      <NetworkCheck
+        phone={phone}
+        networkId={network.id}
+        networkName={network.name}
+        available={networks}
+        bypass={skipCheck}
+        onBypass={(next) => setBypassKey(next ? checkKey : "")}
+        onSwitch={(id) => {
+          chooseNetwork(id);
+          setBypassKey("");
+        }}
+      />
 
       <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-baseline justify-between gap-4">

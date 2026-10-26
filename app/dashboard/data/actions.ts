@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/transactions";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { formatNaira } from "@/lib/format";
+import { networkMismatchMessage } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
 import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
@@ -46,7 +47,8 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
     return fail("That purchase isn't valid. Refresh the page and try again.");
   }
 
-  const { planId, phone, reference } = input as Record<string, unknown>;
+  const { planId, phone, reference, skipNetworkCheck } = input as Record<string, unknown>;
+  const allowMismatch = skipNetworkCheck === true;
   if (typeof planId !== "string" || !planId || typeof reference !== "string" || !UUID.test(reference)) {
     return fail("That purchase isn't valid. Refresh the page and try again.");
   }
@@ -69,6 +71,9 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
 
   const plan = await getPurchasablePlan(planId);
   if (!plan) return fail("That plan isn't available any more. Refresh the page.");
+
+  const mismatchError = !allowMismatch ? networkMismatchMessage(phone, plan.networkId, plan.networkName) : null;
+  if (mismatchError) return fail(mismatchError);
 
   const price = await getPlanPriceForPackage(plan.id, customer.packageId);
   if (price === null || !Number.isFinite(price) || price <= 0) {

@@ -23,7 +23,24 @@ function amountInKobo(amount: number): number {
   return kobo;
 }
 
-async function postWallet(path: string, body: Record<string, string | number>): Promise<void> {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Timeouts, dropped connections and 5xx may or may not have reached the wallet. */
+function isTransient(error: unknown): boolean {
+  if (error instanceof WalletRequestError) {
+    return error.status >= 500 || error.status === 408 || error.status === 429;
+  }
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"))
+  );
+}
+
+async function postWallet(
+  path: string,
+  body: Record<string, string | number>,
+  options: { timeoutMs?: number } = {},
+): Promise<void> {
   const secret = process.env.INTERNAL_API_SECRET;
   if (!secret) throw new Error("INTERNAL_API_SECRET must be set before connecting to the wallet.");
 
@@ -36,7 +53,7 @@ async function postWallet(path: string, body: Record<string, string | number>): 
     },
     body: JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
   });
 
   const text = await response.text();
@@ -90,15 +107,30 @@ export async function debitWallet(customerId: string, amount: number, reference:
   }
 }
 
-/** Credit a purchase refund once; the reference is the wallet service's idempotency key. */
+const CREDIT_ATTEMPTS = 3;
+
+/**
+ * Credit a purchase refund once; the reference is the wallet service's idempotency key,
+ * so retrying after a timeout can never pay twice.
+ */
 export async function creditWallet(customerId: string, amount: number, reference: string): Promise<boolean> {
-  await postWallet("/api/private/wallet/credit", {
+  const body = {
     user: customerId,
     asset: "NGN",
     amount: amountInKobo(amount),
     source: "transfer_in",
     reference,
     description: "Spur VTU purchase refund",
-  });
-  return true;
+  };
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await postWallet("/api/private/wallet/credit", body, { timeoutMs: 15_000 });
+      return true;
+    } catch (error) {
+      if (attempt >= CREDIT_ATTEMPTS || !isTransient(error)) throw error;
+      console.warn(`[wallet] Credit attempt ${attempt} failed, retrying`, reference);
+      await sleep(attempt * 1000);
+    }
+  }
 }

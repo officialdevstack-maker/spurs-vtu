@@ -2,7 +2,7 @@ import { createSpursProxy } from "@spurs-cloud/accounts/next";
 
 
 export const proxy =  createSpursProxy({
-    publicPaths: ['/', 'api/v1']
+    publicPaths: ["/", "/api/v1", "/api/webhooks", "/api/cron"],
 })
 
 export const config = {

@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   "transactions.view",
   "announcements.manage",
   "roles.manage",
+  "settings.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -72,6 +73,17 @@ export const PERMISSION_GROUPS: {
         id: "roles.manage",
         label: "Manage roles and staff",
         hint: "Can edit any role, including their own, so only give this to people you fully trust.",
+      },
+    ],
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    permissions: [
+      {
+        id: "settings.manage",
+        label: "Manage webhooks and pending transactions",
+        hint: "Get webhook URLs and fail pending transactions. This can refund wallets, so give it carefully.",
       },
     ],
   },
