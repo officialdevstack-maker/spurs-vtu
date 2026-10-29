@@ -5,6 +5,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type {
   AuthType,
   HttpMethod,
+  NetworkOption,
   Provider,
   ProviderEndpoint,
   ProviderKind,
@@ -31,6 +32,8 @@ export type EndpointFields = {
   bodyTemplate: string;
   active: boolean;
 };
+
+export type NetworkCodeFields = { networkId: string; code: string };
 
 type ProviderRow = {
   id: string;
@@ -69,7 +72,7 @@ const toEndpoint = (row: EndpointRow): ProviderEndpoint => ({
 
 export async function getProviders(): Promise<Provider[]> {
   const pool = getPool();
-  const [providers, endpoints] = await Promise.all([
+  const [providers, endpoints, codes] = await Promise.all([
     pool.query<ProviderRow>(
       `select id, name, kind, base_url, auth_type, auth_name, auth_username,
               secret_enc is not null as has_secret, enabled, priority, timeout_ms
@@ -78,6 +81,9 @@ export async function getProviders(): Promise<Provider[]> {
     pool.query<EndpointRow>(
       "select id, provider_id, service, method, path, body_template, active from provider_endpoints order by service",
     ),
+    pool.query<{ provider_id: string; network_id: string; code: string }>(
+      "select provider_id, network_id, code from provider_network_codes",
+    ),
   ]);
 
   const byProvider = new Map<string, ProviderEndpoint[]>();
@@ -85,6 +91,13 @@ export async function getProviders(): Promise<Provider[]> {
     const list = byProvider.get(row.provider_id) ?? [];
     list.push(toEndpoint(row));
     byProvider.set(row.provider_id, list);
+  }
+
+  const codesByProvider = new Map<string, Record<string, string>>();
+  for (const row of codes.rows) {
+    const map = codesByProvider.get(row.provider_id) ?? {};
+    map[row.network_id] = row.code;
+    codesByProvider.set(row.provider_id, map);
   }
 
   return providers.rows.map((provider) => ({
@@ -99,6 +112,7 @@ export async function getProviders(): Promise<Provider[]> {
     enabled: provider.enabled,
     priority: provider.priority,
     timeoutMs: provider.timeout_ms,
+    networkCodes: codesByProvider.get(provider.id) ?? {},
     endpoints: byProvider.get(provider.id) ?? [],
   }));
 }
@@ -203,25 +217,33 @@ export async function deleteEndpoint(providerId: string, endpointId: string): Pr
 }
 
 export async function getProviderForCall(providerId: string, service: ProviderService) {
-  const { rows } = await getPool().query<
-    Omit<ProviderRow, "has_secret"> & {
-      secret_enc: string | null;
-      endpoint_method: HttpMethod;
-      endpoint_path: string;
-      endpoint_body: string;
-    }
-  >(
-    `select p.id, p.name, p.kind, p.base_url, p.auth_type, p.auth_name, p.auth_username, p.secret_enc,
-            p.enabled, p.priority, p.timeout_ms,
-            e.method as endpoint_method, e.path as endpoint_path, e.body_template as endpoint_body
-     from providers p
-     join provider_endpoints e on e.provider_id = p.id and e.service = $2 and e.active
-     where p.id = $1 and p.enabled`,
-    [providerId, service],
-  );
+  const [providerResult, codesResult] = await Promise.all([
+    getPool().query<
+      Omit<ProviderRow, "has_secret"> & {
+        secret_enc: string | null;
+        endpoint_method: HttpMethod;
+        endpoint_path: string;
+        endpoint_body: string;
+      }
+    >(
+      `select p.id, p.name, p.kind, p.base_url, p.auth_type, p.auth_name, p.auth_username, p.secret_enc,
+              p.enabled, p.priority, p.timeout_ms,
+              e.method as endpoint_method, e.path as endpoint_path, e.body_template as endpoint_body
+       from providers p
+       join provider_endpoints e on e.provider_id = p.id and e.service = $2 and e.active
+       where p.id = $1 and p.enabled`,
+      [providerId, service],
+    ),
+    getPool().query<{ network_id: string; code: string }>(
+      "select network_id, code from provider_network_codes where provider_id = $1",
+      [providerId],
+    ),
+  ]);
 
-  const row = rows[0];
+  const row = providerResult.rows[0];
   if (!row) return null;
+
+  const networkCodes = Object.fromEntries(codesResult.rows.map((item) => [item.network_id, item.code]));
 
   return {
     id: row.id,
@@ -234,5 +256,51 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
     method: row.endpoint_method,
     path: row.endpoint_path,
     bodyTemplate: row.endpoint_body,
+    networkCodes,
   };
+}
+
+export async function listNetworkOptions(): Promise<NetworkOption[]> {
+  const { rows } = await getPool().query<NetworkOption>(
+    "select id, name from networks order by sort_order, name",
+  );
+  return rows;
+}
+
+export async function saveNetworkCodes(providerId: string, codes: NetworkCodeFields[]): Promise<boolean> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const exists = await client.query("select 1 from providers where id = $1", [providerId]);
+    if (!exists.rowCount) {
+      await client.query("rollback");
+      return false;
+    }
+    await client.query("delete from provider_network_codes where provider_id = $1", [providerId]);
+    if (codes.length > 0) {
+      await client.query(
+        `insert into provider_network_codes (provider_id, network_id, code)
+         select $1, t.network_id, t.code
+         from unnest($2::text[], $3::text[]) as t(network_id, code)`,
+        [providerId, codes.map((code) => code.networkId), codes.map((code) => code.code)],
+      );
+    }
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getNetworkCode(providerId: string, networkId: string): Promise<string | number> {
+  const { rows } = await getPool().query<{ code: string }>(
+    "select code from provider_network_codes where provider_id = $1 and network_id = $2",
+    [providerId, networkId],
+  );
+  const code = rows[0]?.code;
+  if (!code) return networkId;
+  return /^\d+$/.test(code) ? Number(code) : code;
 }

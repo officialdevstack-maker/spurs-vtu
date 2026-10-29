@@ -37,7 +37,13 @@ export async function callProviderEndpoint(
     const provider = await getProviderForCall(providerId, service);
     if (!provider) throw new Error("Provider is off or has no active endpoint for this service.");
 
-    url = new URL(`${provider.baseUrl}${fill(provider.path, vars, "path")}`);
+    const resolvedVars: Vars = { ...vars };
+    const networkId = typeof resolvedVars.network === "string" || typeof resolvedVars.network === "number" ? String(resolvedVars.network) : undefined;
+    if (networkId && provider.networkCodes[networkId] !== undefined) {
+      resolvedVars.network = provider.networkCodes[networkId];
+    }
+
+    url = new URL(`${provider.baseUrl}${fill(provider.path, resolvedVars, "path")}`);
     headers = { Accept: "application/json" };
 
     switch (provider.authType) {
@@ -58,7 +64,7 @@ export async function callProviderEndpoint(
     method = provider.method;
     if (provider.method === "POST") {
       headers["Content-Type"] = "application/json";
-      body = provider.bodyTemplate ? fill(provider.bodyTemplate, vars, "body") : undefined;
+      body = provider.bodyTemplate ? fill(provider.bodyTemplate, resolvedVars, "body") : undefined;
     }
     timeoutMs = provider.timeoutMs;
   } catch (error) {
@@ -75,6 +81,8 @@ export async function callProviderEndpoint(
     redirect: "error",
     signal: AbortSignal.timeout(timeoutMs),
   });
+
+  console.log(body ? `[provider-call] ${method} ${url} with body: ${body}` : `[provider-call] ${method} ${url}`);
 
   const text = await response.text();
   let data: unknown = text;

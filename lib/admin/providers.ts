@@ -55,6 +55,8 @@ export type ProviderEndpoint = {
   active: boolean;
 };
 
+export type NetworkOption = { id: string; name: string };
+
 export type Provider = {
   id: string;
   name: string;
@@ -67,6 +69,8 @@ export type Provider = {
   enabled: boolean;
   priority: number;
   timeoutMs: number;
+  /** networkId -> the provider's own network code */
+  networkCodes: Record<string, string>;
   endpoints: ProviderEndpoint[];
 };
 

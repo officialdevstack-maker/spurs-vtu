@@ -20,12 +20,14 @@ import {
   removeEndpoint,
   removeProvider,
   saveEndpoint,
+  saveNetworkCodes,
   setEndpointActive,
   setProviderEnabled,
   updateProvider,
   type ActionResult,
 } from "@/app/admin/gateways/providers/actions";
 import { EndpointDialog } from "./endpoint-dialog";
+import { NetworkCodesDialog } from "./network-codes-dialog";
 import { ProviderDialog } from "./provider-dialog";
 
 type Dialog =
@@ -35,6 +37,7 @@ type Dialog =
   | { kind: "add-endpoint" }
   | { kind: "edit-endpoint"; endpoint: ProviderEndpoint }
   | { kind: "delete-endpoint"; endpoint: ProviderEndpoint }
+  | { kind: "network-codes" }
   | null;
 
 const th = "px-3 py-3 text-left text-sm font-medium text-gray-600 dark:text-[#9FB3B7] sm:px-5";
@@ -55,9 +58,11 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 
 export function ProvidersManager({
   providers,
+  networks,
   initialProvider,
 }: {
   providers: Provider[];
+  networks: { id: string; name: string }[];
   initialProvider?: string;
 }) {
   const router = useRouter();
@@ -182,6 +187,43 @@ export function ProvidersManager({
                 <Detail label="Priority">{provider.priority}</Detail>
                 <Detail label="Timeout">{(provider.timeoutMs / 1000).toLocaleString("en-NG")}s</Detail>
               </dl>
+            </section>
+
+            <section aria-labelledby="network-codes-heading" className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h3 id="network-codes-heading" className="font-[family-name:var(--font-display)] text-lg font-bold">
+                    Network codes
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
+                    Match this provider’s own network IDs for each Spur network.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDialog({ kind: "network-codes" })}
+                  className={btnIcon}
+                  aria-label={`Edit network codes for ${provider.name}`}
+                  title="Edit network codes"
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {networks.length === 0 ? (
+                <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">No networks available yet.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {networks.map((network) => (
+                    <div key={network.id} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-black/10">
+                      <div className="text-sm font-medium">{network.name}</div>
+                      <div className="mt-1 font-[family-name:var(--font-geist-mono)] text-sm text-gray-600 dark:text-[#9FB3B7]">
+                        {provider.networkCodes[network.id] ?? "Not set"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section aria-labelledby="endpoints-heading">
@@ -315,6 +357,18 @@ export function ProvidersManager({
               setProviderId(providers.find((item) => item.id !== provider.id)?.id ?? "");
               router.refresh();
             }
+            return result;
+          }}
+        />
+      )}
+      {dialog?.kind === "network-codes" && provider && (
+        <NetworkCodesDialog
+          provider={provider}
+          networks={networks}
+          onClose={close}
+          onSubmit={async (input) => {
+            const result = await saveNetworkCodes(provider.id, input);
+            if (result.ok) router.refresh();
             return result;
           }}
         />

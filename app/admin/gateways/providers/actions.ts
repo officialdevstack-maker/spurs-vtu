@@ -180,3 +180,27 @@ export async function removeEndpoint(providerId: string, endpointId: string): Pr
   if (!providerId || !endpointId) return BAD_INPUT;
   return run(() => db.deleteEndpoint(providerId, endpointId));
 }
+
+export async function saveNetworkCodes(
+  providerId: string,
+  input: { networkId: string; code: string }[],
+): Promise<ActionResult> {
+  await requirePermission("gateways.manage");
+  if (!providerId || !Array.isArray(input) || input.length > 100) return BAD_INPUT;
+
+  const seen = new Set<string>();
+  const codes: { networkId: string; code: string }[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") return BAD_INPUT;
+    const networkId = clean((item as { networkId?: unknown }).networkId);
+    const code = clean((item as { code?: unknown }).code);
+    if (!networkId || seen.has(networkId)) return BAD_INPUT;
+    seen.add(networkId);
+    if (!code) continue;
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(code)) {
+      return fail("Codes can use letters, numbers, - or _, up to 40 characters.");
+    }
+    codes.push({ networkId, code });
+  }
+  return run(() => db.saveNetworkCodes(providerId, codes));
+}

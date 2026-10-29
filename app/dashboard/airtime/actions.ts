@@ -33,6 +33,55 @@ const UNAVAILABLE = "That amount isn't available for this network any more. Refr
 const fail = (error: string): PurchaseResult => ({ ok: false, error });
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+const PROVIDER_DIAGNOSTIC_KEYS = new Set([
+  "status",
+  "state",
+  "success",
+  "code",
+  "message",
+  "error",
+  "errors",
+  "reason",
+  "description",
+  "data",
+  "response",
+  "content",
+  "result",
+  "transaction",
+  "transactions",
+  "details",
+]);
+
+function redactProviderText(value: string, phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return value
+    .split(phone)
+    .join("[redacted phone]")
+    .split(digits)
+    .join("[redacted phone]")
+    .replace(/\b0[789][01]\d{8}\b|\+?234[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}\b/g, "[redacted phone]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted email]")
+    .replace(/\b(token|api[_-]?key|authorization|password|secret)\s*[:=]\s*["']?[^,\s"'&}]+/gi, "$1=[redacted]")
+    .slice(0, 500);
+}
+
+function providerResponseSummary(value: unknown, phone: string, depth = 0): unknown {
+  if (typeof value === "string") return redactProviderText(value, phone);
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return value;
+  if (!value || typeof value !== "object" || depth >= 3) return "[omitted]";
+  if (Array.isArray(value)) {
+    return value.slice(0, 3).map((item) => providerResponseSummary(item, phone, depth + 1));
+  }
+
+  const summary: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (PROVIDER_DIAGNOSTIC_KEYS.has(key.toLowerCase())) {
+      summary[key] = providerResponseSummary(item, phone, depth + 1);
+    }
+  }
+  return Object.keys(summary).length > 0 ? summary : "[response fields omitted]";
+}
+
 async function refund(customerId: string, amount: number, reference: string): Promise<boolean> {
   try {
     if (await creditWallet(customerId, amount, `${reference}:refund`)) {
@@ -153,6 +202,16 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
     });
     outcome = interpretProviderResponse(result);
     response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+    if (outcome !== "success") {
+      const payload = (result.data as Record<string, unknown> | null) ?? null;
+      console.warn("[airtime-purchase] Provider returned a non-success response", reference, {
+        providerId,
+        httpStatus: result.status,
+        outcome,
+        response: providerResponseSummary(result.data, phone),
+        result: JSON.stringify(payload?.detail ?? null),
+      });
+    }
   } catch (error) {
     response = error instanceof Error ? error.message : "Provider call failed";
     outcome = error instanceof NotSentError ? "failed" : "pending";
