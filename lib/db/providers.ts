@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/lib/db";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import { SPURS_TENANT_ID } from "@/lib/business-internal/tenant";
 import type {
   AuthType,
   HttpMethod,
@@ -70,19 +71,29 @@ const toEndpoint = (row: EndpointRow): ProviderEndpoint => ({
   active: row.active,
 });
 
-export async function getProviders(): Promise<Provider[]> {
+export async function getProviders(workspaceId = SPURS_TENANT_ID): Promise<Provider[]> {
   const pool = getPool();
   const [providers, endpoints, codes] = await Promise.all([
     pool.query<ProviderRow>(
       `select id, name, kind, base_url, auth_type, auth_name, auth_username,
               secret_enc is not null as has_secret, enabled, priority, timeout_ms
-       from providers order by priority, name`,
+       from providers where workspace_id = $1 order by priority, name`,
+      [workspaceId],
     ),
     pool.query<EndpointRow>(
-      "select id, provider_id, service, method, path, body_template, active from provider_endpoints order by service",
+      `select e.id, e.provider_id, e.service, e.method, e.path, e.body_template, e.active
+         from provider_endpoints e
+         join providers p on p.id = e.provider_id
+        where p.workspace_id = $1
+        order by e.service`,
+      [workspaceId],
     ),
     pool.query<{ provider_id: string; network_id: string; code: string }>(
-      "select provider_id, network_id, code from provider_network_codes",
+      `select c.provider_id, c.network_id, c.code
+         from provider_network_codes c
+         join providers p on p.id = c.provider_id
+        where p.workspace_id = $1`,
+      [workspaceId],
     ),
   ]);
 

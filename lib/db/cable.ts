@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db";
 import type { PackageOption, PackagePrice, PriceMode, ProviderOption } from "@/lib/admin/airtime-data";
 import type { CableOperator, CablePlan } from "@/lib/admin/cable";
+import { SPURS_TENANT_ID } from "@/lib/business-internal/tenant";
 
 export type CablePlanFields = {
   name: string;
@@ -58,12 +59,28 @@ const toPlan = (r: PlanRow, packagePrices: PackagePrice[] = []): CablePlan => ({
   active: r.active,
 });
 
-export async function getCableOperators(): Promise<CableOperator[]> {
+export async function getCableOperators(workspaceId = SPURS_TENANT_ID): Promise<CableOperator[]> {
   const pool = getPool();
   const [operators, plans, prices] = await Promise.all([
-    pool.query<OperatorRow>("select id, name, enabled from cable_operators order by sort_order, name"),
-    pool.query<PlanRow>(`${PLAN_SELECT} order by p.price, p.name`),
-    pool.query<PackagePriceRow>("select plan_id, package_id, mode, value from cable_plan_package_prices"),
+    pool.query<OperatorRow>(
+      "select id, name, enabled from cable_operators where workspace_id = $1 order by sort_order, name",
+      [workspaceId],
+    ),
+    pool.query<PlanRow>(
+      `${PLAN_SELECT}
+        join cable_operators o on o.id = p.operator_id
+        where o.workspace_id = $1
+        order by p.price, p.name`,
+      [workspaceId],
+    ),
+    pool.query<PackagePriceRow>(
+      `select pp.plan_id, pp.package_id, pp.mode, pp.value
+         from cable_plan_package_prices pp
+         join cable_plans p on p.id = pp.plan_id
+         join cable_operators o on o.id = p.operator_id
+        where o.workspace_id = $1`,
+      [workspaceId],
+    ),
   ]);
 
   const pricesByPlan = new Map<string, PackagePrice[]>();
