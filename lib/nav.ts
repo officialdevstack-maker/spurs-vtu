@@ -47,7 +47,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Fund wallet", href: "/fund-wallet", icon: Wallet },
       { label: "Transactions", href: "/dashboard/transactions", icon: Receipt },
-      { label: "Bonus rewards", href: "/bonus", icon: Gift },
+      { label: "Bonus rewards", href: "/dashboard/bonus", icon: Gift },
     ],
   },
 ];

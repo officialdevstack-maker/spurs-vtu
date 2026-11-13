@@ -51,6 +51,20 @@ to `/api/cron/fail-pending` with the header
 `Authorization: Bearer <CRON_SECRET>`. Auto-fail is disabled until enabled on
 that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
 
+## Connect to a Spurs Business workspace
+
+When a workspace owner asks to connect this VTU site, set the workspace ID and
+verification token they provide as `SPURS_BUSINESS_WORKSPACE_ID` and
+`SPURS_BUSINESS_VERIFY_TOKEN`. Deploy the site, then the Business app can verify
+ownership by reading `/.well-known/spurs-business.json`. The endpoint returns
+those two values and disables caching; keep the token private until verification
+is complete.
+
+After verification, set the per-workspace secret issued by the Business app as
+`BUSINESS_INTERNAL_API_SECRET` on this site and redeploy. This secret is sent
+only with authenticated server-to-server requests. Do not expose it in browser
+code or commit it to source control.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -71,7 +71,7 @@ export function BalanceCards({ wallet, bonus }: { wallet: number | null; bonus: 
           </p>
         </div>
         <Link
-          href="/bonus"
+          href="/dashboard/bonus"
           className="w-fit rounded text-sm font-semibold underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632]"
         >
           See your bonus rewards
