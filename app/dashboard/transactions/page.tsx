@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { HistoryFilters, HistoryList, HistoryPagination } from "@/components/transactions/history-list";
 import { listCustomerTransactions } from "@/lib/db/transactions";
 import { HISTORY_PAGE_SIZE, parseHistoryParams, type HistoryParams } from "@/lib/transactions-history";

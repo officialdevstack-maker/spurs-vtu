@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Wifi } from "lucide-react";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { DataPurchase } from "@/components/dashboard/data-purchase";
 import { getCustomerForPurchase, getDataCatalog } from "@/lib/db/data-purchase";
 import { getCustomerPackage } from "@/lib/db/packages";

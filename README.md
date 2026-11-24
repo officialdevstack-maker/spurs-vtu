@@ -26,6 +26,19 @@ Set `ADMIN_SPURS_IDS` to a comma-separated list of authorized Spurs account IDs
 (`sub` claims) to access `/admin`. If the variable is unset or empty, admin
 access is denied to everyone.
 
+## Sign-in
+
+VTU authenticates with the node-accounts OIDC service through `@spurs/auth`.
+Set `APP_URL` to this app's public origin, `SPURS_ISSUER` to the node-accounts
+OIDC issuer, `SPURS_CLIENT_ID` to the client registered for this app, and
+`SPURS_SESSION_SECRET` to a random secret. Register `<APP_URL>/auth/callback`
+as the client's redirect URI. For local development, set `APP_URL` to
+`http://localhost:3700`.
+
+The `@spurs/auth` package is hosted on GitHub Packages. Configure a GitHub
+Packages token with read access to `spurs/node-accounts` in your npm environment;
+do not commit the token.
+
 ## PostgreSQL
 
 Set `DATABASE_URL` in `.env` to the dedicated VTU PostgreSQL connection string.

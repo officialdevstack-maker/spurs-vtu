@@ -10,7 +10,7 @@
     "db:migrate": "node --env-file=.env scripts/migrate.mjs"
   },
   "dependencies": {
-    "@spurs-cloud/accounts": "github:officialdevstack-maker/spurs-account-js-sdk",
+    "@spurs/auth": "2.0.0",
     "@spurs-cloud/pay": "github:officialdevstack-maker/spurs-pay-js-sdk",
     "@spurs-cloud/wallet": "github:officialdevstack-maker/spurs-wallet-js-sdk",
     "lucide-react": "^1.61.0",

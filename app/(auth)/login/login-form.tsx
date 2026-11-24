@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, useTransition, type FormEvent } from "react";
-import { SpursSignInButton } from "@spurs-cloud/accounts/react";
 import { loginAction } from "./actions";
 
 type Errors = { phone?: string; password?: string; form?: string };
@@ -168,23 +167,12 @@ export function LoginForm() {
         <span className="h-px flex-1 bg-[#CBD8DA]" />
       </div>
 
-      {/* Style props win over the component's inline defaults. */}
-      <SpursSignInButton
-        returnTo="/dashboard"
-        style={{
-          width: "100%",
-          justifyContent: "center",
-          height: 48,
-          padding: "0 16px",
-          fontSize: 16,
-          borderRadius: 12,
-          background: "#ffffff",
-          color: "#12343B",
-          border: "1px solid #BFCFD2",
-        }}
+      <Link
+        href="/auth/login?return_to=%2Fdashboard"
+        className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-[#BFCFD2] bg-white px-4 text-base font-semibold text-[#12343B]"
       >
         Continue with Spurs
-      </SpursSignInButton>
+      </Link>
 
       <p className="mt-8 text-sm text-[#3C5257]">
         New to Spur VTU?{" "}

@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
 import { changeCustomerPackage, getCustomerPackage, getPackage } from "@/lib/db/packages";
 import { debitWallet } from "@/lib/wallet";

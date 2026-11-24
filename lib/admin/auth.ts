@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { PERMISSIONS, type Permission } from "@/lib/admin/permissions";
 import { getStaffPermissions } from "@/lib/db/roles";
 

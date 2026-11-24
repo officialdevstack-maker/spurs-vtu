@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Smartphone } from "lucide-react";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { AirtimePurchase } from "@/components/dashboard/airtime-purchase";
 import { getAirtimeCatalog } from "@/lib/db/airtime-purchase";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";

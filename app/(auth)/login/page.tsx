@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { SpursSignInButton } from "@spurs-cloud/accounts/react";
+import Link from "next/link";
+import { spurs } from "@/lib/spurs";
 
 export const metadata: Metadata = {
   title: "Log in | Spur VTU",
@@ -125,11 +126,11 @@ export default function LoginPage() {
 
           {/* Style props win over the component's inline defaults. */}
           <div className="mt-8">
-            <SpursSignInButton
-                issuer={process.env.SPURS_ISSUER}
-              returnTo="/dashboard"
+            <Link
+              href={spurs.signInUrl("/dashboard")}
               style={{
                 width: "100%",
+                display: "inline-flex",
                 justifyContent: "center",
                 height: 52,
                 padding: "0 16px",
@@ -141,7 +142,7 @@ export default function LoginPage() {
               }}
             >
               Log in with Spurs
-            </SpursSignInButton>
+            </Link>
           </div>
 
         

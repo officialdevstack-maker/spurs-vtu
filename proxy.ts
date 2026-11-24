@@ -1,10 +1,7 @@
-import { createSpursProxy } from "@spurs-cloud/accounts/next";
+import { spurs } from "@/lib/spurs";
 
-
-export const proxy = createSpursProxy({
-    publicPaths: ["/", "/api/v1", "/api/webhooks", "/api/cron", "/.well-known/spurs-business.json"],
-})
+export const proxy = spurs.proxy;
 
 export const config = {
-    matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"], 
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }

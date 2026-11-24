@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { getSpursUser } from "@spurs-cloud/accounts/next";
-import { SpursSignInButton } from "@spurs-cloud/accounts/react";
+import { getSpursUser, spurs } from "@/lib/spurs";
 
 type Variant = "primary" | "secondary";
 
@@ -68,12 +67,12 @@ export async function AuthButton({
   }
 
   return (
-    <SpursSignInButton
-      issuer={process.env.SPURS_ISSUER}
-      returnTo="/dashboard"
+    <Link
+      href={spurs.signInUrl("/dashboard")}
+      className={`${base} ${linkStyles[variant]} ${sizeClass(compact)}`}
       style={buttonStyle(variant, compact)}
     >
       {label}
-    </SpursSignInButton>
+    </Link>
   );
 }

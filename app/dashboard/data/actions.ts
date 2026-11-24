@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSpursUser } from "@spurs-cloud/accounts/next";
+import { requireSpursUser } from "@/lib/spurs";
 import { getPlanPriceForPackage } from "@/lib/db/airtime-data";
 import { getCustomerForPurchase, getPurchasablePlan, pickDataProvider } from "@/lib/db/data-purchase";
 import {

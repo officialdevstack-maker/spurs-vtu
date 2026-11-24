@@ -12,8 +12,8 @@ import { getDashboardData } from "@/lib/dashboard-data";
 import { getRecentTransactions } from "@/lib/db/transactions";
 import { formatLongDate, greetingFor } from "@/lib/format";
 import { getNairaBalance } from "@/lib/wallet";
-import { getSpursUser } from "@spurs-cloud/accounts/next";
-import { createSpursClient } from "@spurs-cloud/accounts";
+import { getSpursUser } from "@/lib/spurs";
+import { accountsOrigin, resolveIssuer } from "@spurs/auth";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -22,8 +22,9 @@ async function DashboardContent() {
   await connection();
   const [data, user] = await Promise.all([getDashboardData(), getSpursUser()]);
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
+  const hasKycStatus = !!user && "kyc_status" in user;
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
-  const spurs = createSpursClient();
+  const accountUrl = `${accountsOrigin(resolveIssuer())}/me`;
   const now = new Date();
 
   const [balance, transactions] = user
@@ -41,20 +42,22 @@ async function DashboardContent() {
           <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">{formatLongDate(now)}</p>
         </div>
 
-        {verified ? (
-          <p className="flex items-center gap-2 rounded-full bg-[#E6F4EC] px-3 py-1 text-sm font-medium text-[#14693A] dark:bg-[#4CC38A]/15 dark:text-[#4CC38A]">
-            <ShieldCheck className="size-4" aria-hidden="true" />
-            Verified
-          </p>
-        ) : (
-          <p className="flex items-center gap-2 rounded-full bg-[#FFF3D1] px-3 py-1 text-sm font-medium text-[#7A5600] dark:bg-[#F2B632]/15 dark:text-[#F2B632]">
-            <ShieldAlert className="size-4" aria-hidden="true" />
-            Not verified
-          </p>
+        {hasKycStatus && (
+          verified ? (
+            <p className="flex items-center gap-2 rounded-full bg-[#E6F4EC] px-3 py-1 text-sm font-medium text-[#14693A] dark:bg-[#4CC38A]/15 dark:text-[#4CC38A]">
+              <ShieldCheck className="size-4" aria-hidden="true" />
+              Verified
+            </p>
+          ) : (
+            <p className="flex items-center gap-2 rounded-full bg-[#FFF3D1] px-3 py-1 text-sm font-medium text-[#7A5600] dark:bg-[#F2B632]/15 dark:text-[#F2B632]">
+              <ShieldAlert className="size-4" aria-hidden="true" />
+              Not verified
+            </p>
+          )
         )}
       </header>
 
-      {!verified && (
+      {hasKycStatus && !verified && (
         <div
           role="status"
           className="flex flex-col gap-4 rounded-2xl border border-[#F2B632]/60 bg-[#FFF8E1] p-5 dark:border-[#F2B632]/30 dark:bg-[#F2B632]/10 sm:flex-row sm:items-center sm:justify-between"
@@ -66,7 +69,7 @@ async function DashboardContent() {
             </p>
           </div>
           <Link
-            href={spurs.accountUrl()}
+            href={accountUrl}
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#12343B] px-5 text-sm font-semibold text-white outline-none transition-colors hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
           >
             Verify now
