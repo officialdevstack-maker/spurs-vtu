@@ -35,9 +35,7 @@ OIDC issuer, `SPURS_CLIENT_ID` to the client registered for this app, and
 as the client's redirect URI. For local development, set `APP_URL` to
 `http://localhost:3700`.
 
-The `@spurs/auth` package is hosted on GitHub Packages. Configure a GitHub
-Packages token with read access to `spurs/node-accounts` in your npm environment;
-do not commit the token.
+The SDK is installed from the node-accounts GitHub repository.
 
 ## PostgreSQL
 
