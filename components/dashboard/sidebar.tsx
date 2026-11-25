@@ -12,10 +12,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Sun,
-  UserRound,
   X,
 } from "lucide-react";
 import { NAV, type NavGroup } from "@/lib/nav";
+import { SwitchLink } from "@/components/ui/switch-link";
 
 export type SidebarUser = { name: string; username?: string; email?: string; picture?: string | null };
 
@@ -65,10 +65,10 @@ export function Sidebar({
   user,
   unreadCount = 0,
   signOutHref = "/logout",
-  notificationsHref = "/notifications",
+  notificationsHref = "/dashboard/notifications",
   nav = NAV,
   brandSuffix,
-  modeSwitch,
+  switchTo,
   showNotifications = true,
   open,
   collapsed,
@@ -82,7 +82,7 @@ export function Sidebar({
   notificationsHref?: string;
   nav?: NavGroup[];
   brandSuffix?: string;
-  modeSwitch?: { href: string; label: string };
+  switchTo?: "admin" | "user";
   showNotifications?: boolean;
   /** Mobile drawer state. Ignored on desktop, where the sidebar is always visible. */
   open: boolean;
@@ -357,6 +357,7 @@ export function Sidebar({
       </nav>
 
       <div className={`shrink-0 space-y-3 border-t border-gray-200 p-4 dark:border-white/10 ${R_PX3}`}>
+        {switchTo && <SwitchLink to={switchTo} collapsed={collapsed} onNavigate={onNavigate} />}
         <div className={`flex min-w-0 items-center gap-3 ${R_CENTER}`}>
           <span className="relative shrink-0">
             {user.picture ? (
@@ -387,16 +388,6 @@ export function Sidebar({
             <div className="absolute bottom-full right-0 z-50 mb-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-[#10262B]">
               {user.username && (
                 <p className="truncate px-3 py-2 text-xs text-gray-500 dark:text-[#8FA5A9]">@{user.username}</p>
-              )}
-              {modeSwitch && (
-                <Link
-                  href={modeSwitch.href}
-                  onClick={onNavigate}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B] dark:text-[#9FB3B7] dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-[#F2B632]"
-                >
-                  <UserRound className="size-5" aria-hidden="true" />
-                  {modeSwitch.label}
-                </Link>
               )}
               {showNotifications && (
                 <Link

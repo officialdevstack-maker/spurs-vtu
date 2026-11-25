@@ -37,7 +37,10 @@ export const ADMIN_NAV: NavGroup[] = [
         label: "Announcement",
         href: "/admin/announcements",
         icon: Megaphone,
-        permission: "announcements.manage",
+        children: [
+          { label: "Welcome message", href: "/admin/announcements/welcome", permission: "announcements.manage" },
+          { label: "Broadcast", href: "/admin/announcements/broadcast", permission: "announcements.manage" },
+        ],
       },
     ],
   },

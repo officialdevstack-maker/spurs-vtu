@@ -1,4 +1,5 @@
 import {
+  Bell,
   Gift,
   LayoutDashboard,
   Receipt,
@@ -28,7 +29,10 @@ export const NAV: NavGroup[] = [
   {
     id: "overview",
     label: "Overview",
-    items: [{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
+      { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
+    ],
   },
   {
     id: "services",

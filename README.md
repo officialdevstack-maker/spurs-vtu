@@ -84,6 +84,15 @@ to `/api/cron/fail-pending` with the header
 `Authorization: Bearer <CRON_SECRET>`. Auto-fail is disabled until enabled on
 that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
 
+## Announcements
+
+Run `npm run db:migrate` to add the welcome message, broadcast and notifications
+tables. Configure `RESEND_API_KEY` and `MAIL_FROM` for email, or `TERMII_API_KEY`
+and `TERMII_SENDER_ID` for SMS. Configure a scheduled HTTP GET to
+`/api/cron/send-broadcasts` every minute with
+`Authorization: Bearer <CRON_SECRET>` so broadcasts that outgrow a request can
+continue in later runs.
+
 ## Connect to a Spurs Business workspace
 
 When a workspace owner asks to connect this VTU site, set the workspace ID and

@@ -25,7 +25,7 @@ export function AdminShell({
       user={user}
       nav={nav}
       brandSuffix="Admin"
-      modeSwitch={{ href: "/dashboard", label: "Switch to user" }}
+      switchTo="user"
       showNotifications={false}
     >
       {children}
