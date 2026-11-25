@@ -5,7 +5,7 @@ const SERVICES: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Data", href: "/dashboard/data", icon: Wifi },
   { label: "Airtime", href: "/dashboard/airtime", icon: Smartphone },
   { label: "Cable TV", href: "/cable-tv", icon: Tv },
-  { label: "Electricity", href: "/electricity", icon: Zap },
+  { label: "Electricity", href: "/dashboard/electricity", icon: Zap },
   { label: "History", href: "/dashboard/transactions", icon: History },
   { label: "More", href: "/services", icon: LayoutGrid },
 ];

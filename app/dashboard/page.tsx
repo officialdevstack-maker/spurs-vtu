@@ -9,10 +9,11 @@ import { QuickServices } from "@/components/dashboard/quick-services";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SpendSummary } from "@/components/dashboard/spend-summary";
 import { getDashboardData } from "@/lib/dashboard-data";
-import { getRecentTransactions } from "@/lib/db/transactions";
+import { getMonthlySpend, getRecentTransactions } from "@/lib/db/transactions";
 import { formatLongDate, greetingFor } from "@/lib/format";
 import { getNairaBalance } from "@/lib/wallet";
 import { getSpursUser } from "@/lib/spurs";
+import { DashboardSkeleton } from "@/components/ui/skeletons";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -25,9 +26,9 @@ async function DashboardContent() {
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
   const now = new Date();
 
-  const [balance, transactions] = user
-    ? await Promise.all([getNairaBalance(user.sub), getRecentTransactions(user.sub)])
-    : [null, []];
+  const [balance, transactions, spend] = user
+    ? await Promise.all([getNairaBalance(user.sub), getRecentTransactions(user.sub), getMonthlySpend(user.sub)])
+    : [null, [], { total: 0, byService: [] }];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -85,7 +86,7 @@ async function DashboardContent() {
         </div>
         <div className="min-w-0 space-y-8">
           <PackageCard pkg={data.package} />
-          <SpendSummary spend={data.spend} />
+          <SpendSummary spend={spend} />
         </div>
       </div>
     </div>
@@ -94,7 +95,7 @@ async function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading dashboard?</div>}>
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent />
     </Suspense>
   );

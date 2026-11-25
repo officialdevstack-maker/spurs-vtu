@@ -11,6 +11,7 @@ import { formatLongDate } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { getAdminAccess } from "@/lib/admin/auth";
 import { firstAccessiblePath } from "@/lib/admin/nav";
+import { OverviewSkeleton } from "@/components/ui/skeletons";
 
 export const metadata: Metadata = { title: "Admin overview | Spur VTU" };
 
@@ -70,7 +71,7 @@ async function AdminOverviewContent() {
 
 export default function AdminOverviewPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">Loading overview…</div>}>
+    <Suspense fallback={<OverviewSkeleton />}>
       <AdminOverviewContent />
     </Suspense>
   );

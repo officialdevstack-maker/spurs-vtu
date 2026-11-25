@@ -38,7 +38,7 @@ export const NAV: NavGroup[] = [
       { label: "Airtime", href: "/dashboard/airtime", icon: Smartphone },
       { label: "Data", href: "/dashboard/data", icon: Wifi },
       { label: "Cable TV", href: "/cable-tv", icon: Tv },
-      { label: "Electricity", href: "/electricity", icon: Zap },
+      { label: "Electricity", href: "/dashboard/electricity", icon: Zap },
     ],
   },
   {

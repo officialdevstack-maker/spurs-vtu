@@ -29,7 +29,7 @@ export const ADMIN_NAV: NavGroup[] = [
         children: [
           { label: "Airtime & Data", href: "/admin/products/airtime-data", permission: "products.view" },
           { label: "Cable TV", href: "/admin/products/cable-tv", permission: "products.view" },
-          { label: "Bills", href: "/admin/products/bills", permission: "products.view" },
+          { label: "Electricity", href: "/admin/products/electricity", permission: "products.view" },
           { label: "Exam", href: "/admin/products/exam", permission: "products.view" },
         ],
       },

@@ -1,6 +1,7 @@
 import "server-only";
 import { getPool } from "@/lib/db";
-import type { Transaction, TxService, TxStatus } from "@/lib/dashboard-data";
+import type { DashboardData, Transaction, TxService, TxStatus } from "@/lib/dashboard-data";
+import { SERVICE_OPTIONS } from "@/lib/transactions-history";
 
 export type NewTransaction = {
   id: string;
@@ -314,4 +315,24 @@ export async function getSalesReport(from: string, to: string): Promise<SalesRep
     })),
     top: top.rows.map((row) => ({ title: row.title, sold: Number(row.sold), revenue: Number(row.revenue) })),
   };
+}
+
+const serviceLabel = (id: string) => SERVICE_OPTIONS.find((option) => option.id === id)?.label ?? id;
+
+/** What a customer has spent this month (Lagos time). Only successful debits count. */
+export async function getMonthlySpend(customerId: string): Promise<DashboardData["spend"]> {
+  const { rows } = await getPool().query<{ service: TxService; amount: string }>(
+    `select service, sum(amount)::text as amount
+     from transactions
+     where customer_id = $1
+       and direction = 'debit'
+       and status = 'success'
+       and created_at >= date_trunc('month', now() at time zone 'Africa/Lagos') at time zone 'Africa/Lagos'
+     group by service
+     order by sum(amount) desc`,
+    [customerId],
+  );
+
+  const byService = rows.map((row) => ({ label: serviceLabel(row.service), amount: Number(row.amount) }));
+  return { total: byService.reduce((sum, item) => sum + item.amount, 0), byService };
 }
