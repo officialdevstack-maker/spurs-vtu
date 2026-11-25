@@ -38,7 +38,9 @@ export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentAc
     ) {
       return fail("Enter the public key, secret key and webhook hash to add Flutterwave.");
     }
-    await db.saveFlutterwaveProvider(settings);
+    if (!(await db.saveFlutterwaveProvider(settings))) {
+      return fail("No payment provider changes were saved. Refresh the page and try again.");
+    }
     revalidatePath("/admin/gateways/payment");
     revalidatePath("/fund-wallet");
     return { ok: true };

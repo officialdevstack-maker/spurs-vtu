@@ -16,7 +16,7 @@ export default async function NewCablePlanPage({
   searchParams: Promise<{ operator?: string }>;
 }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { operator: operatorId } = await searchParams;
   if (!operatorId) notFound();
 

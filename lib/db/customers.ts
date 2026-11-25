@@ -42,35 +42,30 @@ function toCustomer(row: CustomerRow): Customer {
   };
 }
 
-export async function listCustomers(filters: CustomerFilters): Promise<{
-  customers: Customer[];
-  total: number;
-  page: number;
-}> {
+export async function listCustomers(
+  filters: CustomerFilters,
+): Promise<{ customers: Customer[]; total: number; page: number }> {
   const pool = getPool();
   const normalizedQuery = filters.query.trim().replace(/[!%_]/g, "!$&");
   const search = normalizedQuery ? `%${normalizedQuery}%` : null;
   const status = filters.status === "all" ? null : filters.status;
   const pageSize = Math.max(1, Math.min(filters.pageSize, 100));
   const params = [search, status];
-  const where = `where ($1::text is null or name ilike $1 escape '!'
-          or username ilike $1 escape '!' or email ilike $1 escape '!')
-          and ($2::text is null or status = $2)`;
-  const count = await pool.query<{ count: string }>(
-    `select count(*)::text as count from customers ${where}`,
-    params,
-  );
+  const from = `from customers c
+    where ($1::text is null or c.name ilike $1 escape '!'
+           or c.username ilike $1 escape '!' or c.email ilike $1 escape '!')
+      and ($2::text is null or c.status = $2)`;
+  const count = await pool.query<{ count: string }>(`select count(*)::text as count ${from}`, params);
   const total = Number(count.rows[0]?.count ?? "0");
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const maxPage = Math.floor(Number.MAX_SAFE_INTEGER / pageSize);
   const page = Math.min(Math.max(1, filters.page), pageCount, maxPage);
   const offset = (page - 1) * pageSize;
   const rows = await pool.query<CustomerRow>(
-    `select id, name, username, email, status, created_at, last_seen_at
-       from customers
-       ${where}
-      order by created_at desc, id
-      limit $3 offset $4`,
+    `select c.id, c.name, c.username, c.email, c.status, c.created_at, c.last_seen_at
+     ${from}
+     order by c.created_at desc, c.id
+     limit $3 offset $4`,
     [...params, pageSize, offset],
   );
 
@@ -89,8 +84,8 @@ export async function syncCustomer(user: {
   phone?: string;
 }): Promise<CustomerStatus> {
   const { rows } = await getPool().query<{ status: CustomerStatus }>(
-    `insert into customers (id, name, username, email, phone)
-     values ($1, $2, $3, $4, $5)
+    `insert into customers (id, name, username, email, phone, package_id)
+     values ($1, $2, $3, $4, $5, coalesce((select id from packages where is_default limit 1), 'basic'))
      on conflict (id) do update
        set name = excluded.name,
            username = excluded.username,
@@ -105,7 +100,10 @@ export async function syncCustomer(user: {
   return customer.status;
 }
 
-export async function updateCustomerStatus(id: string, status: CustomerStatus): Promise<boolean> {
+export async function updateCustomerStatus(
+  id: string,
+  status: CustomerStatus,
+): Promise<boolean> {
   const { rowCount } = await getPool().query(
     "update customers set status = $2 where id = $1",
     [id, status],

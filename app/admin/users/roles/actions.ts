@@ -29,7 +29,7 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
     return fail("No customer found with that username, email, phone or Spurs ID. They need to log in to Spur VTU once first.");
   }
   if (code === "ALREADY_STAFF") return fail("That person is already on the staff list.");
-  if (code === "OWNER") return fail("Owners already have full access and can't be added as staff.");
+  if (code === "BAD_ROLE") return fail("Choose a valid role.");
   console.error("[roles]", error);
   return fail("Something went wrong saving that. Try again.");
 }

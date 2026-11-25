@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Edit airtime discount | Spur VTU" };
 
 export default async function EditDiscountPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { id } = await params;
 
   const found = await getDiscount(id);

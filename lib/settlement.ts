@@ -60,12 +60,15 @@ export type FailPendingReport = {
   unverified: number;
 };
 
-export async function failPending(olderThanMinutes: number, reason: string): Promise<FailPendingReport> {
+export async function failPending(
+  olderThanMinutes: number,
+  reason: string,
+): Promise<FailPendingReport> {
   const report: FailPendingReport = { failed: 0, refunded: 0, refundNeeded: 0, unverified: 0 };
   let cursor: PendingTransactionId | null = null;
 
   while (true) {
-    const transactions = await listPendingIds(olderThanMinutes, cursor);
+    const transactions = await listPendingIds(olderThanMinutes, cursor, 500);
     if (transactions.length === 0) break;
     cursor = transactions[transactions.length - 1];
 

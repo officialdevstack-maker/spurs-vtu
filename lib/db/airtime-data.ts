@@ -17,7 +17,6 @@ import type {
   Service,
 } from "@/lib/admin/airtime-data";
 import { formatVolume, resolvePackagePrice } from "@/lib/admin/airtime-data";
-import { SPURS_TENANT_ID } from "@/lib/business-internal/tenant";
 
 export type PlanFields = {
   type: string;
@@ -145,55 +144,30 @@ const toPin = (r: PinRow): PinStock => ({
 
 const changed = (r: { rowCount: number | null }) => (r.rowCount ?? 0) > 0;
 
-export async function getAirtimeDataProducts(
-  workspaceId = SPURS_TENANT_ID,
-): Promise<AirtimeDataProducts> {
+export async function getAirtimeDataProducts(): Promise<AirtimeDataProducts> {
   const pool = getPool();
   const [networks, types, enabled, plans, discounts, pins, packagePrices] = await Promise.all([
-    pool.query<NetworkRow>(
-      "select id, name, enabled from networks where workspace_id = $1 order by sort_order, name",
-      [workspaceId],
-    ),
+    pool.query<NetworkRow>("select id, name, enabled from networks order by sort_order, name"),
     pool.query<TypeRow>("select id, label, service from data_types order by service, created_at, label"),
     pool.query<{ network_id: string; type_id: string }>(
-      `select ndt.network_id, ndt.type_id
-         from network_data_types ndt
-         join networks n on n.id = ndt.network_id
-        where ndt.enabled and n.workspace_id = $1`,
-      [workspaceId],
+      "select network_id, type_id from network_data_types where enabled",
     ),
     pool.query<PlanRow>(
       `${PLAN_SELECT}
-        join networks n on n.id = p.network_id
-        where n.workspace_id = $1
         order by p.cost, p.size`,
-      [workspaceId],
     ),
     pool.query<DiscountRow>(
       `select d.id, d.network_id, d.type_id, d.discount, d.min_amount, d.max_amount,
               d.provider_id, p.name as provider_name, d.provider_discount, d.active
        from airtime_discounts d
-       join networks n on n.id = d.network_id
        left join providers p on p.id = d.provider_id
-       where n.workspace_id = $1
        order by d.type_id, d.min_amount`,
-      [workspaceId],
     ),
     pool.query<PinRow>(
-      `select ps.id, ps.network_id, ps.kind, ps.label, ps.price, ps.available, ps.used
-         from pin_stock ps
-         join networks n on n.id = ps.network_id
-        where n.workspace_id = $1
-        order by ps.price`,
-      [workspaceId],
+      "select id, network_id, kind, label, price, available, used from pin_stock order by price",
     ),
     pool.query<PackagePriceRow>(
-      `select pp.plan_id, pp.package_id, pp.mode, pp.value
-         from data_plan_package_prices pp
-         join data_plans p on p.id = pp.plan_id
-         join networks n on n.id = p.network_id
-        where n.workspace_id = $1`,
-      [workspaceId],
+      "select plan_id, package_id, mode, value from data_plan_package_prices",
     ),
   ]);
 
@@ -444,7 +418,7 @@ export async function getPlanPriceForPackage(planId: string, packageId: string):
 }
 
 export async function getCustomerPackageId(customerId: string): Promise<string> {
-  const { rows } = await getPool().query<{ package_id: string }>(
+  const { rows } = await getPool().query<{ package_id: string | null }>(
     "select package_id from customers where id = $1",
     [customerId],
   );

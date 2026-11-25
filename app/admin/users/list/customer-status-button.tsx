@@ -57,7 +57,7 @@ export function CustomerStatusButton({
         >
           <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
             {isSuspending
-              ? `Mark ${customerName} as suspended in customer management? This status is currently informational and does not block sign-in, purchases or wallet funding.`
+              ? `Suspend ${customerName}? They can still sign in, but they won't be able to make purchases. Suspended staff also lose admin access.`
               : `Mark ${customerName} as active in customer management?`}
           </p>
           {error ? (

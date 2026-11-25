@@ -29,7 +29,9 @@ export async function listProviderWebhooks() {
     name: string;
     enabled: boolean;
     webhook_token: string;
-  }>("select id, name, enabled, webhook_token from providers order by priority, name");
+  }>(
+    "select id, name, enabled, webhook_token from providers order by priority, name",
+  );
   return rows.map((row) => ({ id: row.id, name: row.name, enabled: row.enabled, token: row.webhook_token }));
 }
 

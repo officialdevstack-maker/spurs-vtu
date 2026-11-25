@@ -16,7 +16,7 @@ export default async function NewPlanPage({
   searchParams: Promise<{ network?: string; type?: string }>;
 }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { network: networkId, type } = await searchParams;
   if (!networkId) notFound();
 

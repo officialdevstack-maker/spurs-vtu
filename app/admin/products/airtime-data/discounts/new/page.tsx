@@ -16,7 +16,7 @@ export default async function NewDiscountPage({
   searchParams: Promise<{ network?: string }>;
 }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { network: networkId } = await searchParams;
   if (!networkId) notFound();
 

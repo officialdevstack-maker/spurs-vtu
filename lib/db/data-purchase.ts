@@ -9,7 +9,13 @@ export async function getCustomerForPurchase(id: string) {
     status: CustomerStatus;
     package_id: string;
     phone: string | null;
-  }>("select status, package_id, phone from customers where id = $1", [id]);
+  }>(
+    `select c.status, c.package_id,
+            c.phone
+       from customers c
+      where c.id = $1`,
+    [id],
+  );
   const row = rows[0];
   return row ? { status: row.status, packageId: row.package_id, phone: row.phone } : null;
 }

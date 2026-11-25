@@ -13,7 +13,7 @@ export const instant = false;
 
 export default async function EditCablePlanPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { id } = await params;
   const found = await getCablePlan(id);
   if (!found) notFound();

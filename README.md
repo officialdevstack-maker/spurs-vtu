@@ -22,9 +22,13 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Admin access
 
-Set `ADMIN_SPURS_IDS` to a comma-separated list of authorized Spurs account IDs
-(`sub` claims) to access `/admin`. If the variable is unset or empty, admin
-access is denied to everyone.
+Admin access is stored in the database. Staff are customers with a role, managed at
+Admin → User management → Roles & permissions. Owners (full access) are granted only from a script:
+
+    npm run admin:owner -- <spurs-id | email | username | phone>
+    npm run admin:owner -- <same> --revoke
+
+The person must have logged in to Spur VTU once first. Suspended staff lose admin access.
 
 ## Sign-in
 

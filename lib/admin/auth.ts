@@ -3,26 +3,14 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requireSpursUser } from "@/lib/spurs";
 import { PERMISSIONS, type Permission } from "@/lib/admin/permissions";
-import { getStaffPermissions } from "@/lib/db/roles";
-
-function ownerIds(): Set<string> {
-  return new Set(
-    (process.env.ADMIN_SPURS_IDS ?? "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean),
-  );
-}
+import { getStaffAccess } from "@/lib/db/roles";
 
 export const getAdminAccess = cache(async () => {
   const user = await requireSpursUser();
-  if (ownerIds().has(user.sub)) {
-    return { user, owner: true, permissions: new Set<Permission>(PERMISSIONS) };
-  }
-
-  const granted = await getStaffPermissions(user.sub);
-  if (!granted) notFound();
-  return { user, owner: false, permissions: new Set<Permission>(granted) };
+  const access = await getStaffAccess(user.sub);
+  if (!access) notFound();
+  const permissions = new Set<Permission>(access.owner ? PERMISSIONS : access.permissions);
+  return { user, owner: access.owner, permissions };
 });
 
 export async function requireAdmin() {

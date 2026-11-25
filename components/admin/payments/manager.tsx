@@ -20,11 +20,13 @@ function CredentialField({
   label,
   saved,
   hint,
+  maxLength = 2000,
 }: {
   id: string;
   label: string;
   saved: boolean;
   hint: string;
+  maxLength?: number;
 }) {
   return (
     <Field
@@ -37,7 +39,7 @@ function CredentialField({
         name={id}
         type="password"
         autoComplete="new-password"
-        maxLength={2000}
+        maxLength={maxLength}
         className={inputClass()}
       />
     </Field>
@@ -111,6 +113,7 @@ export function PaymentProvidersManager({ settings }: { settings: PaymentProvide
             label="Public key"
             saved={settings?.hasPublicKey ?? false}
             hint="Enter the public key from your Flutterwave dashboard."
+            maxLength={1000}
           />
           <CredentialField
             id="secretKey"

@@ -191,7 +191,10 @@ function toHistoryItem(row: HistoryRow, admin: boolean): HistoryItem {
   };
 }
 
-export async function listCustomerTransactions(customerId: string, filters: HistoryFilters) {
+export async function listCustomerTransactions(
+  customerId: string,
+  filters: HistoryFilters,
+) {
   const { rows, total, page } = await queryHistory(filters, customerId);
   return { items: rows.map((row) => toHistoryItem(row, false)), total, page };
 }

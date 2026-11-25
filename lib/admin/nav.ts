@@ -74,3 +74,13 @@ export function filterNav(nav: NavGroup[], can: (permission: Permission) => bool
     }))
     .filter((group) => group.items.length > 0);
 }
+
+export function firstAccessiblePath(can: (permission: Permission) => boolean): string | null {
+  for (const group of filterNav(ADMIN_NAV, can)) {
+    for (const item of group.items) {
+      const target = item.children?.[0]?.href ?? item.href;
+      if (target !== "/admin") return target;
+    }
+  }
+  return null;
+}

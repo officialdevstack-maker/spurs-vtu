@@ -1,13 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/admin/auth";
+import { getAdminAccess, requirePermission } from "@/lib/admin/auth";
 import { updateCustomerStatus, type CustomerStatus } from "@/lib/db/customers";
+import { isStaffMember } from "@/lib/db/roles";
 
 export async function setCustomerStatusAction(id: string, status: CustomerStatus) {
-  await requirePermission("customers.manage");
+  const user = await requirePermission("customers.manage");
   if (typeof id !== "string" || !id.trim() || (status !== "active" && status !== "suspended")) {
     return { ok: false as const, error: "Invalid customer status request." };
+  }
+
+  if (status === "suspended") {
+    if (id === user.sub) return { ok: false as const, error: "You can't suspend your own account." };
+    const { owner } = await getAdminAccess();
+    if (!owner && (await isStaffMember(id))) {
+      return { ok: false as const, error: "Only an owner can suspend a staff account." };
+    }
   }
 
   try {

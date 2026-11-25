@@ -13,7 +13,7 @@ export const instant = false;
 
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
-  await requirePermission("products.view");
+  await requirePermission("products.manage");
   const { id } = await params;
   const found = await getPlan(id);
   if (!found) notFound();

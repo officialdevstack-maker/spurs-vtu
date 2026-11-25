@@ -8,11 +8,24 @@ import { RevenueByService } from "@/components/admin/revenue-by-service";
 import { StatCards } from "@/components/admin/stat-cards";
 import { getAdminOverview } from "@/lib/db/admin-overview";
 import { formatLongDate } from "@/lib/format";
+import { redirect } from "next/navigation";
+import { getAdminAccess } from "@/lib/admin/auth";
+import { firstAccessiblePath } from "@/lib/admin/nav";
 
 export const metadata: Metadata = { title: "Admin overview | Spur VTU" };
 
 async function AdminOverviewContent() {
   await connection();
+  const { permissions } = await getAdminAccess();
+  if (!permissions.has("transactions.view")) {
+    const home = firstAccessiblePath((permission) => permissions.has(permission));
+    if (home) redirect(home);
+    return (
+      <p className="mx-auto max-w-6xl p-6 text-sm text-gray-600 dark:text-[#9FB3B7]">
+        Your role doesn&apos;t include any admin pages yet. Ask an owner to update it.
+      </p>
+    );
+  }
   const data = await getAdminOverview();
   const { pending, failed } = data.attention;
   const needsAttention = pending + failed > 0;

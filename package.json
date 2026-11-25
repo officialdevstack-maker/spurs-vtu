@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "node --env-file=.env scripts/migrate.mjs"
+    "db:migrate": "node --env-file=.env scripts/migrate.mjs",
+    "admin:owner": "node --env-file=.env scripts/grant-owner.mjs"
   },
   "dependencies": {
     "@spurs-cloud/pay": "github:officialdevstack-maker/spurs-pay-js-sdk",

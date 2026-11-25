@@ -6,6 +6,7 @@ export default async function UsersIndexPage() {
   await connection();
   const { permissions } = await getAdminAccess();
   if (permissions.has("customers.view")) redirect("/admin/users/list");
+  if (permissions.has("packages.manage")) redirect("/admin/users/packages");
   if (permissions.has("roles.manage")) redirect("/admin/users/roles");
   redirect("/admin");
 }
