@@ -14,11 +14,14 @@ const BOUNDS = `cross join (
 export async function getAdminOverview(): Promise<AdminOverview> {
   const pool = getPool();
 
-  const [customers, today, attention, month, recent] = await Promise.all([
+  const [customers, wallet, today, attention, month, recent] = await Promise.all([
     pool.query<{ total: string; new_this_week: string }>(
       `select count(*)::text as total,
               (count(*) filter (where created_at >= now() - interval '7 days'))::text as new_this_week
        from customers`,
+    ),
+    pool.query<{ balance_kobo: string }>(
+      "select coalesce(sum(balance_kobo), 0)::text as balance_kobo from vtu_wallets",
     ),
     pool.query<{ transactions: string; success: string; failed: string; revenue: string }>(
       `select count(*)::text as transactions,
@@ -85,7 +88,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       total: Number(customers.rows[0]?.total ?? 0),
       newThisWeek: Number(customers.rows[0]?.new_this_week ?? 0),
     },
-    walletFloat: null,
+    walletFloat: Number(wallet.rows[0]?.balance_kobo ?? 0) / 100,
     today: {
       revenue: Number(todayRow?.revenue ?? 0),
       transactions: Number(todayRow?.transactions ?? 0),

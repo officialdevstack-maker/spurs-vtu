@@ -18,7 +18,7 @@ import { AuthButton, AuthButtonFallback } from "@/components/landing/auth-button
 export const metadata: Metadata = {
   title: "Spur VTU | Airtime, data and bills in seconds",
   description:
-    "Fund your wallet once, then buy airtime, data, cable TV and electricity in a few taps. Instant delivery and automatic refunds.",
+    "Fund your VTU wallet with Flutterwave, then buy airtime, data, cable TV and electricity in a few taps. Instant delivery and automatic refunds.",
 };
 
 const NAV = [
@@ -36,8 +36,8 @@ const SERVICES: { name: string; text: string; icon: LucideIcon }[] = [
 ];
 
 const STEPS = [
-  { title: "Create your account", text: "Sign up with Spurs in a minute. Verify once to get your funding account number." },
-  { title: "Fund your wallet", text: "Transfer to your account number and your balance updates automatically." },
+  { title: "Create your account", text: "Sign up with Spurs in a minute and open the wallet dashboard." },
+  { title: "Fund your wallet", text: "Use a permanent account for repeat transfers or create a temporary account for one deposit." },
   { title: "Buy what you need", text: "Pick a service, confirm, and it is delivered. Every purchase shows in your history." },
 ];
 
@@ -72,7 +72,7 @@ const PACKAGES = [
 const FAQS = [
   {
     q: "How do I fund my wallet?",
-    a: "Verify your account, then transfer to the funding account number shown in your dashboard. Your balance updates once the transfer lands.",
+    a: "Choose a permanent Flutterwave account using your own BVN, or create a temporary account for a specific deposit. Your balance updates after Flutterwave confirms the transfer.",
   },
   {
     q: "What happens if a purchase fails?",
@@ -387,7 +387,7 @@ export default function Home() {
               >
                 Ready for your first top-up?
               </h2>
-              <p className="mt-2 text-base text-[#B9C8CB]">Create your account in a minute. It's free.</p>
+              <p className="mt-2 text-base text-[#B9C8CB]">Create your account in a minute. It&apos;s free.</p>
             </div>
             <Suspense fallback={<AuthButtonFallback label="Create free account" />}>
               <AuthButton label="Create free account" />

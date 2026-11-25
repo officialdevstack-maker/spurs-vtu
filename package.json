@@ -10,9 +10,9 @@
     "db:migrate": "node --env-file=.env scripts/migrate.mjs"
   },
   "dependencies": {
-    "@spurs/auth": "git+https://github.com/officialdevstack-maker/node-accounts-js-sdk.git#927c10cacfb72cacdbfc6561f20e6cdd5aed2a1f",
     "@spurs-cloud/pay": "github:officialdevstack-maker/spurs-pay-js-sdk",
-    "@spurs-cloud/wallet": "github:officialdevstack-maker/spurs-wallet-js-sdk",
+    "@spurs/auth": "git+https://github.com/officialdevstack-maker/node-accounts-js-sdk.git#927c10cacfb72cacdbfc6561f20e6cdd5aed2a1f",
+    "flutterwave-node-v3": "^1.4.1",
     "lucide-react": "^1.61.0",
     "next": "16.4.2",
     "pg": "^8.23.1",
@@ -30,5 +30,10 @@
     "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "flutterwave-node-v3": {
+      "joi": "^17.13.9"
+    }
   }
 }

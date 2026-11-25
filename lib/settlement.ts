@@ -12,7 +12,7 @@ import type { WebhookResult } from "@/lib/admin/webhooks";
 
 type RefundState = "refunded" | "needed" | "none";
 
-/** Refunds a failed purchase once. The `:refund` reference is the wallet's idempotency key. */
+/** Refunds a failed purchase once. The `:refund` reference is the ledger idempotency key. */
 async function refundIfNeeded(tx: SettledTransaction): Promise<RefundState> {
   if (tx.direction !== "debit" || !tx.debited || tx.refunded) return "none";
   try {

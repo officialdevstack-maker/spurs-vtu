@@ -13,7 +13,6 @@ import { getRecentTransactions } from "@/lib/db/transactions";
 import { formatLongDate, greetingFor } from "@/lib/format";
 import { getNairaBalance } from "@/lib/wallet";
 import { getSpursUser } from "@/lib/spurs";
-import { accountsOrigin, resolveIssuer } from "@spurs/auth";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -24,7 +23,6 @@ async function DashboardContent() {
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
   const hasKycStatus = !!user && "kyc_status" in user;
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
-  const accountUrl = `${accountsOrigin(resolveIssuer())}/me`;
   const now = new Date();
 
   const [balance, transactions] = user
@@ -63,16 +61,16 @@ async function DashboardContent() {
           className="flex flex-col gap-4 rounded-2xl border border-[#F2B632]/60 bg-[#FFF8E1] p-5 dark:border-[#F2B632]/30 dark:bg-[#F2B632]/10 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
-            <p className="font-semibold text-[#12343B] dark:text-[#EEF3F4]">Verify your account to get your funding account number</p>
+            <p className="font-semibold text-[#12343B] dark:text-[#EEF3F4]">Choose how you want to fund your wallet</p>
             <p className="mt-1 text-sm text-[#5C4A12] dark:text-[#D9C48A]">
-              Once verified, you can fund your wallet by bank transfer at any time.
+              You can create a temporary account for one transfer or a permanent account using your own BVN.
             </p>
           </div>
           <Link
-            href={accountUrl}
+            href="/fund-wallet"
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#12343B] px-5 text-sm font-semibold text-white outline-none transition-colors hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
           >
-            Verify now
+            Fund wallet
           </Link>
         </div>
       )}

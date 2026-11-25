@@ -15,7 +15,7 @@ export function StatCards({ data }: { data: AdminOverview }) {
     {
       label: "Wallet float",
       value: data.walletFloat === null ? "Unavailable" : formatNaira(data.walletFloat),
-      note: data.walletFloat === null ? "Total across wallets isn't connected" : "Held across all wallets",
+      note: data.walletFloat === null ? "VTU wallet total is unavailable" : "Held across VTU wallets",
       icon: Landmark,
     },
     {

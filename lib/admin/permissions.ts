@@ -48,7 +48,7 @@ export const PERMISSION_GROUPS: {
     id: "gateways",
     label: "Gateways",
     permissions: [
-      { id: "gateways.manage", label: "Manage providers", hint: "View and change providers, endpoints and secrets." },
+      { id: "gateways.manage", label: "Manage providers", hint: "Manage service providers, payment integrations and credentials." },
     ],
   },
   {

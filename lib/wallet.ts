@@ -1,15 +1,5 @@
 import "server-only";
-import { SpursWallet, SPURS_WALLET_URL } from "@spurs-cloud/wallet";
-
-class WalletRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "WalletRequestError";
-  }
-}
+import { changeWalletBalance, getWalletBalanceKobo } from "@/lib/db/wallet";
 
 function amountInKobo(amount: number): number {
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -23,62 +13,10 @@ function amountInKobo(amount: number): number {
   return kobo;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Timeouts, dropped connections and 5xx may or may not have reached the wallet. */
-function isTransient(error: unknown): boolean {
-  if (error instanceof WalletRequestError) {
-    return error.status >= 500 || error.status === 408 || error.status === 429;
-  }
-  return (
-    error instanceof TypeError ||
-    (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"))
-  );
-}
-
-async function postWallet(
-  path: string,
-  body: Record<string, string | number>,
-  options: { timeoutMs?: number } = {},
-): Promise<void> {
-  const secret = process.env.INTERNAL_API_SECRET;
-  if (!secret) throw new Error("INTERNAL_API_SECRET must be set before connecting to the wallet.");
-
-  const baseUrl = (process.env.SPURS_WALLET_URL || SPURS_WALLET_URL).replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-internal-secret": secret,
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
-    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-  });
-
-  const text = await response.text();
-  let data: unknown = text;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch (error) {
-      if (!(error instanceof SyntaxError)) throw error;
-    }
-  }
-
-  if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "error" in data && typeof data.error === "string"
-        ? data.error
-        : `Spurs Wallet request failed (${response.status}).`;
-    throw new WalletRequestError(message, response.status);
-  }
-}
-
 /** The customer's NGN balance in naira, or null if the wallet cannot be reached. */
 export async function getNairaBalance(customerId: string): Promise<number | null> {
   try {
-    const minorUnits = BigInt(await new SpursWallet().balanceOf(customerId, "NGN"));
+    const minorUnits = await getWalletBalanceKobo(customerId);
     if (minorUnits > BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new Error("Wallet balance exceeds the supported display range.");
     }
@@ -90,47 +28,21 @@ export async function getNairaBalance(customerId: string): Promise<number | null
 }
 
 export async function debitWallet(customerId: string, amount: number, reference: string): Promise<boolean> {
-  try {
-    await postWallet("/api/private/wallet/debit", {
-      user: customerId,
-      asset: "NGN",
-      amount: amountInKobo(amount),
-      description: `Spur VTU transaction ${reference}`,
-      reference,
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof WalletRequestError && error.status === 400 && error.message === "Insufficient balance") {
-      return false;
-    }
-    throw error;
-  }
+  return changeWalletBalance({
+    customerId,
+    amountKobo: amountInKobo(amount),
+    reference,
+    direction: "debit",
+    source: "purchase",
+  });
 }
 
-const CREDIT_ATTEMPTS = 3;
-
-/**
- * Credit a purchase refund once; the reference is the wallet service's idempotency key,
- * so retrying after a timeout can never pay twice.
- */
 export async function creditWallet(customerId: string, amount: number, reference: string): Promise<boolean> {
-  const body = {
-    user: customerId,
-    asset: "NGN",
-    amount: amountInKobo(amount),
-    source: "transfer_in",
+  return changeWalletBalance({
+    customerId,
+    amountKobo: amountInKobo(amount),
     reference,
-    description: "Spur VTU purchase refund",
-  };
-
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await postWallet("/api/private/wallet/credit", body, { timeoutMs: 15_000 });
-      return true;
-    } catch (error) {
-      if (attempt >= CREDIT_ATTEMPTS || !isTransient(error)) throw error;
-      console.warn(`[wallet] Credit attempt ${attempt} failed, retrying`, reference);
-      await sleep(attempt * 1000);
-    }
-  }
+    direction: "credit",
+    source: "refund",
+  });
 }

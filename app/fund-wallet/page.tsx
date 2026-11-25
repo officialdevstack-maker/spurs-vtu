@@ -1,9 +1,39 @@
-import { SPURS_WALLET_URL } from "@spurs-cloud/wallet";
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { connection } from "next/server";
+import { FundingPanel } from "@/components/funding/funding-panel";
+import { getFlutterwaveAccount, getRecentFundingIntents } from "@/lib/db/wallet";
+import { getNairaBalance } from "@/lib/wallet";
+import { requireSpursUser } from "@/lib/spurs";
 
+export const metadata: Metadata = { title: "Fund wallet | Spur VTU" };
 export const instant = false;
 
-export default function FundWalletPage() {
-  const walletUrl = (process.env.SPURS_WALLET_URL || SPURS_WALLET_URL).replace(/\/$/, "");
-  redirect(`${walletUrl}/dashboard/topup`);
+export default async function FundWalletPage() {
+  await connection();
+  const user = await requireSpursUser();
+  const [balance, permanentAccount, pendingIntents] = await Promise.all([
+    getNairaBalance(user.sub),
+    getFlutterwaveAccount(user.sub),
+    getRecentFundingIntents(user.sub),
+  ]);
+  const accountView = permanentAccount
+    ? {
+        accountNumber: permanentAccount.accountNumber,
+        bankName: permanentAccount.bankName,
+        accountName: permanentAccount.accountName,
+        status: permanentAccount.status,
+      }
+    : null;
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Fund your wallet</h1>
+        <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
+          Choose a permanent account for repeat transfers or create a temporary account for one deposit.
+        </p>
+      </header>
+      <FundingPanel balance={balance} permanentAccount={accountView} pendingIntents={pendingIntents} />
+    </div>
+  );
 }
