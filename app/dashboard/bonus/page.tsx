@@ -1,6 +1,8 @@
 import Button from '@/components/ui/Button'
 import React from 'react'
 
+export const instant = false
+
 const Page = () => {
   return (
     <div>

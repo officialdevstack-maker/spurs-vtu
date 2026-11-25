@@ -124,28 +124,14 @@ export default function LoginPage() {
             Log in to top up, pay bills and check your wallet.
           </p>
 
-          {/* Style props win over the component's inline defaults. */}
           <div className="mt-8">
             <Link
               href={spurs.signInUrl("/dashboard")}
-              style={{
-                width: "100%",
-                display: "inline-flex",
-                justifyContent: "center",
-                height: 52,
-                padding: "0 16px",
-                fontSize: 16,
-                fontWeight: 600,
-                borderRadius: 12,
-                background: "#F2B632",
-                color: "#12343B",
-              }}
+              className="inline-flex h-[52px] w-full items-center justify-center rounded-xl bg-[#F2B632] px-4 text-base font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] active:bg-[#D99A17] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 focus-visible:ring-offset-[#EEF3F4]"
             >
               Log in with Spurs
             </Link>
           </div>
-
-        
         </div>
 
         <footer className="mt-12 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#3C5257] lg:mt-0 lg:justify-center">

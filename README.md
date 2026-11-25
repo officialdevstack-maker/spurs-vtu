@@ -32,8 +32,9 @@ VTU authenticates with the node-accounts OIDC service through `@spurs/auth`.
 Set `APP_URL` to this app's public origin, `SPURS_ISSUER` to the node-accounts
 OIDC issuer, `SPURS_CLIENT_ID` to the client registered for this app, and
 `SPURS_SESSION_SECRET` to a random secret. Register `<APP_URL>/auth/callback`
-as the client's redirect URI. For local development, set `APP_URL` to
-`http://localhost:3700`.
+as the client's redirect URI. If the registered client is confidential, also
+set `SPURS_CLIENT_SECRET`; leave it unset for a public client. For local
+development, set `APP_URL` to `http://localhost:3700`.
 
 The SDK is installed from the node-accounts GitHub repository.
 

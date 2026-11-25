@@ -6,6 +6,7 @@ import { listCustomerTransactions } from "@/lib/db/transactions";
 import { HISTORY_PAGE_SIZE, parseHistoryParams, type HistoryParams } from "@/lib/transactions-history";
 
 export const metadata: Metadata = { title: "Transactions | Spur VTU" };
+export const instant = false;
 
 const PATH = "/dashboard/transactions";
 
