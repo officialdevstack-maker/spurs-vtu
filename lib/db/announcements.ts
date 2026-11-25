@@ -61,7 +61,7 @@ export async function insertNotification(n: {
   body: string;
 }): Promise<void> {
   await getPool().query(
-    `insert into notifications (id, customer_id, title, body) values ($1, $2, $3, $4)
+    `insert into vtu_notifications (id, customer_id, title, body) values ($1, $2, $3, $4)
      on conflict (id) do nothing`,
     [n.id, n.customerId, n.title, n.body],
   );
@@ -73,7 +73,7 @@ export async function insertSystemNotifications(
 ): Promise<number> {
   if (items.length === 0) return 0;
   const result = await getPool().query(
-    `insert into notifications (id, customer_id, title, body, broadcast_id)
+    `insert into vtu_notifications (id, customer_id, title, body, broadcast_id)
      select $1::text || ':' || t.customer_id, t.customer_id, t.title, t.body, $1::text
      from unnest($2::text[], $3::text[], $4::text[]) as t(customer_id, title, body)
      on conflict (id) do nothing`,
@@ -84,7 +84,7 @@ export async function insertSystemNotifications(
 
 export async function getUnreadCount(customerId: string): Promise<number> {
   const { rows } = await getPool().query<{ n: string }>(
-    "select count(*)::text as n from notifications where customer_id = $1 and read_at is null",
+    "select count(*)::text as n from vtu_notifications where customer_id = $1 and read_at is null",
     [customerId],
   );
   return Number(rows[0]?.n ?? 0);
@@ -98,7 +98,7 @@ export async function listNotifications(customerId: string, limit = 50): Promise
     read_at: Date | null;
     created_at: Date;
   }>(
-    `select id, title, body, read_at, created_at from notifications
+    `select id, title, body, read_at, created_at from vtu_notifications
      where customer_id = $1 order by created_at desc, id limit $2`,
     [customerId, limit],
   );
@@ -112,7 +112,7 @@ export async function listNotifications(customerId: string, limit = 50): Promise
 }
 
 export async function markAllNotificationsRead(customerId: string): Promise<void> {
-  await getPool().query("update notifications set read_at = now() where customer_id = $1 and read_at is null", [customerId]);
+  await getPool().query("update vtu_notifications set read_at = now() where customer_id = $1 and read_at is null", [customerId]);
 }
 
 const AUDIENCE_WHERE = `c.status = 'active'

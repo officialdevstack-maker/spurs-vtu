@@ -36,7 +36,7 @@ create table if not exists broadcasts (
 create index if not exists broadcasts_created_idx on broadcasts (created_at desc);
 create index if not exists broadcasts_sending_idx on broadcasts (created_at) where status = 'sending';
 
-create table if not exists notifications (
+create table if not exists vtu_notifications (
   id text primary key,
   customer_id text not null references customers(id) on delete cascade,
   title text not null,
@@ -45,5 +45,5 @@ create table if not exists notifications (
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
-create index if not exists notifications_customer_idx on notifications (customer_id, created_at desc);
-create index if not exists notifications_unread_idx on notifications (customer_id) where read_at is null;
+create index if not exists vtu_notifications_customer_idx on vtu_notifications (customer_id, created_at desc);
+create index if not exists vtu_notifications_unread_idx on vtu_notifications (customer_id) where read_at is null;
