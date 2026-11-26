@@ -42,4 +42,18 @@ export default async function ApiPage() {
               Every purchase needs a unique UUID <span className="font-mono">reference</span>. Retrying with the same reference never charges twice.
             </p>
             <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-100 p-3 text-xs dark:bg-white/10">{`GET  ${base}/api/v1/balance
-GET  ${base}/api
+GET  ${base}/api/v1/catalog/airtime | data | cable | electricity
+POST ${base}/api/v1/verify/smartcard    {"operatorId","smartcard"}
+POST ${base}/api/v1/verify/meter        {"discoId","meterType","meter"}
+POST ${base}/api/v1/purchase/airtime    {"networkId","typeId","amount","phone","reference"}
+POST ${base}/api/v1/purchase/data       {"planId","phone","reference"}
+POST ${base}/api/v1/purchase/cable      {"planId","smartcard","phone","reference"}
+POST ${base}/api/v1/purchase/electricity {"discoId","meterType","meter","amount","phone","reference"}
+GET  ${base}/api/v1/transactions
+GET  ${base}/api/v1/transactions/<reference>`}</pre>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}

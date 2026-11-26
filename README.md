@@ -84,6 +84,17 @@ to `/api/cron/fail-pending` with the header
 `Authorization: Bearer <CRON_SECRET>`. Auto-fail is disabled until enabled on
 that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
 
+## Public API and webhooks
+
+Run `npm run db:migrate`. Customers on the API package create keys at
+`/dashboard/api`. Signed-in mobile users call the same `/api/v1` routes with a
+Spurs bearer token and must send their transaction PIN with purchases.
+
+Set `SPURS_MOBILE_CLIENT_IDS` to the comma-separated OIDC client IDs used by
+mobile apps. Configure a scheduled HTTP GET to `/api/cron/deliver-webhooks`
+every minute with `Authorization: Bearer <CRON_SECRET>`. This sends queued
+reseller webhooks and retries failed deliveries.
+
 ## Announcements
 
 Run `npm run db:migrate` to add the welcome message, broadcast and notifications
