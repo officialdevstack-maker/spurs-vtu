@@ -13,6 +13,7 @@ import {
   type PurchaseTemplateFields,
 } from "@/lib/admin/purchase-templates";
 import * as db from "@/lib/db/purchase-templates";
+import { recordAudit } from "@/lib/db/audit";
 
 export type TemplateResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): TemplateResult => ({ ok: false, error });
@@ -50,29 +51,44 @@ async function run(fn: () => Promise<boolean | void>): Promise<TemplateResult> {
 }
 
 export async function createTemplate(input: unknown): Promise<TemplateResult> {
-  await requirePermission("announcements.manage");
+  const admin = await requirePermission("announcements.manage");
   const template = parseTemplate(input);
   if (typeof template === "string") return fail(template);
   if ((await db.countPurchaseTemplates()) >= MAX_TEMPLATES) return fail(`You can keep up to ${MAX_TEMPLATES} templates. Delete one you don't use.`);
-  return run(async () => { await db.createPurchaseTemplate(template); });
+  return run(async () => {
+    await db.createPurchaseTemplate(template);
+    await recordAudit(admin, { action: "template.create", summary: `Created purchase template ${template.name}`, meta: { service: template.service, status: template.status, active: template.active } });
+  });
 }
 
 export async function updateTemplate(id: string, input: unknown): Promise<TemplateResult> {
-  await requirePermission("announcements.manage");
+  const admin = await requirePermission("announcements.manage");
   if (typeof id !== "string" || !id) return BAD_INPUT;
   const template = parseTemplate(input);
   if (typeof template === "string") return fail(template);
-  return run(() => db.updatePurchaseTemplate(id, template));
+  return run(async () => {
+    const updated = await db.updatePurchaseTemplate(id, template);
+    if (updated) await recordAudit(admin, { action: "template.update", target: id, summary: `Updated purchase template ${template.name}`, meta: { service: template.service, status: template.status, active: template.active } });
+    return updated;
+  });
 }
 
 export async function setTemplateActive(id: string, active: boolean): Promise<TemplateResult> {
-  await requirePermission("announcements.manage");
+  const admin = await requirePermission("announcements.manage");
   if (typeof id !== "string" || !id || typeof active !== "boolean") return BAD_INPUT;
-  return run(() => db.setPurchaseTemplateActive(id, active));
+  return run(async () => {
+    const updated = await db.setPurchaseTemplateActive(id, active);
+    if (updated) await recordAudit(admin, { action: "template.toggle", target: id, summary: active ? "Activated a purchase template" : "Deactivated a purchase template", meta: { active } });
+    return updated;
+  });
 }
 
 export async function removeTemplate(id: string): Promise<TemplateResult> {
-  await requirePermission("announcements.manage");
+  const admin = await requirePermission("announcements.manage");
   if (typeof id !== "string" || !id) return BAD_INPUT;
-  return run(() => db.deletePurchaseTemplate(id));
+  return run(async () => {
+    const deleted = await db.deletePurchaseTemplate(id);
+    if (deleted) await recordAudit(admin, { action: "template.delete", target: id, summary: "Deleted a purchase template" });
+    return deleted;
+  });
 }

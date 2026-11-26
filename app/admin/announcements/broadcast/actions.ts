@@ -18,6 +18,7 @@ import { processBroadcast } from "@/lib/broadcast";
 import { countAudience, createBroadcast } from "@/lib/db/announcements";
 import { getPackage } from "@/lib/db/packages";
 import { channelAvailability } from "@/lib/messaging/send";
+import { recordAudit } from "@/lib/db/audit";
 
 export type BroadcastInput = { title: string; body: string; channels: Channel[]; audience: Audience; packageId: string | null };
 export type PreviewResult = { ok: true; count: number } | { ok: false; error: string };
@@ -64,6 +65,7 @@ export async function sendBroadcast(input: BroadcastInput): Promise<SendResult> 
     if (total === 0) return { ok: false, error: "No customers match that audience." };
     const id = randomUUID();
     await createBroadcast({ id, title, body, channels, ...audience, total, createdBy: admin.sub });
+    await recordAudit(admin, { action: "broadcast.send", target: id, summary: `Sent broadcast ${title}`, meta: { channels, audience: audience.audience, packageId: audience.packageId, total } });
     after(() => processBroadcast(id));
     revalidatePath(BROADCAST_PATH);
     return { ok: true };

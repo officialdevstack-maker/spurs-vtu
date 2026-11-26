@@ -6,6 +6,7 @@ import { slugify } from "@/lib/admin/airtime-data";
 import { PACKAGES_PATH } from "@/lib/admin/packages";
 import * as db from "@/lib/db/packages";
 import type { PackageFields } from "@/lib/db/packages";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -21,9 +22,10 @@ function databaseCode(error: unknown): string | undefined {
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-async function run(fn: () => Promise<boolean>, options: { id?: string; fk?: string } = {}): Promise<ActionResult> {
+async function run(fn: () => Promise<boolean>, options: { id?: string; fk?: string; log?: () => Promise<void> } = {}): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await options.log?.();
     revalidatePath(PACKAGES_PATH);
     return { ok: true, id: options.id };
   } catch (error) {
@@ -56,25 +58,26 @@ function parsePackage(input: unknown): PackageFields | string {
 }
 
 export async function createPackage(input: PackageFields): Promise<ActionResult> {
-  await requirePermission("packages.manage");
+  const admin = await requirePermission("packages.manage");
   const pkg = parsePackage(input);
   if (typeof pkg === "string") return fail(pkg);
   const id = slugify(pkg.name);
-  return run(() => db.createPackage(id, pkg), { id });
+  return run(() => db.createPackage(id, pkg), { id, log: () => recordAudit(admin, { action: "package.create", target: id, summary: `Created package ${pkg.name}`, meta: { description: pkg.description, sortOrder: pkg.sortOrder, upgradeFee: pkg.upgradeFee, isDefault: pkg.isDefault } }) });
 }
 
 export async function updatePackage(id: string, input: PackageFields): Promise<ActionResult> {
-  await requirePermission("packages.manage");
+  const admin = await requirePermission("packages.manage");
   if (!id) return BAD_INPUT;
   const pkg = parsePackage(input);
   if (typeof pkg === "string") return fail(pkg);
-  return run(() => db.updatePackage(id, pkg));
+  return run(() => db.updatePackage(id, pkg), { log: () => recordAudit(admin, { action: "package.update", target: id, summary: `Updated package ${pkg.name}`, meta: { description: pkg.description, sortOrder: pkg.sortOrder, upgradeFee: pkg.upgradeFee, isDefault: pkg.isDefault } }) });
 }
 
 export async function removePackage(id: string): Promise<ActionResult> {
-  await requirePermission("packages.manage");
+  const admin = await requirePermission("packages.manage");
   if (!id) return BAD_INPUT;
   return run(() => db.deletePackage(id), {
     fk: "Customers are still on this package. Move them to another package first.",
+    log: () => recordAudit(admin, { action: "package.delete", target: id, summary: `Deleted package ${id}` }),
   });
 }

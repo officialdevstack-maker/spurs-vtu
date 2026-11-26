@@ -1,6 +1,7 @@
 export const WEBHOOKS_PATH = "/admin/gateways/webhooks";
 export const AUTO_FAIL_KEY = "pending_auto_fail_minutes";
 export const MIN_AUTO_FAIL_MINUTES = 5;
+export const MIN_FAIL_NOW_MINUTES = 5;
 export const MAX_MINUTES = 10_080;
 
 export type WebhookOutcome = "success" | "failed" | "pending";

@@ -9,6 +9,7 @@ import {
 import { slugify } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/providers";
 import type { EndpointFields, ProviderFields } from "@/lib/db/providers";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -31,9 +32,10 @@ function dbError(error: unknown): ActionResult {
   return fail("Something went wrong saving that. Try again.");
 }
 
-async function run(fn: () => Promise<boolean>, id?: string): Promise<ActionResult> {
+async function run(fn: () => Promise<boolean>, id?: string, log?: () => Promise<void>): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await log?.();
     revalidatePath(PROVIDERS_PATH);
     return { ok: true, id };
   } catch (error) {
@@ -111,31 +113,31 @@ function parseProvider(input: unknown, isNew: boolean): ProviderFields | string 
 }
 
 export async function createProvider(input: ProviderFields): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   const provider = parseProvider(input, true);
   if (typeof provider === "string") return fail(provider);
   const id = slugify(provider.name);
-  return run(() => db.createProvider(id, provider), id);
+  return run(() => db.createProvider(id, provider), id, () => recordAudit(admin, { action: "provider.create", target: id, summary: `Created provider ${provider.name}`, meta: { kind: provider.kind, authType: provider.authType, enabled: provider.enabled } }));
 }
 
 export async function updateProvider(id: string, input: ProviderFields): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   const provider = parseProvider(input, false);
   if (!id) return BAD_INPUT;
   if (typeof provider === "string") return fail(provider);
-  return run(() => db.updateProvider(id, provider));
+  return run(() => db.updateProvider(id, provider), undefined, () => recordAudit(admin, { action: "provider.update", target: id, summary: `Updated provider ${id}`, meta: { kind: provider.kind, authType: provider.authType, enabled: provider.enabled } }));
 }
 
 export async function setProviderEnabled(id: string, enabled: boolean): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   if (!id || typeof enabled !== "boolean") return BAD_INPUT;
-  return run(() => db.setProviderEnabled(id, enabled));
+  return run(() => db.setProviderEnabled(id, enabled), undefined, () => recordAudit(admin, { action: "provider.toggle", target: id, summary: enabled ? "Enabled provider" : "Disabled provider", meta: { enabled } }));
 }
 
 export async function removeProvider(id: string): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   if (!id) return BAD_INPUT;
-  return run(() => db.deleteProvider(id));
+  return run(() => db.deleteProvider(id), undefined, () => recordAudit(admin, { action: "provider.delete", target: id, summary: "Deleted provider" }));
 }
 
 const RESPONSE_PATH = /^[\w-]+(\.[\w-]+)*$/;
@@ -193,11 +195,11 @@ function parseEndpoint(input: unknown): EndpointFields | string {
 }
 
 export async function saveEndpoint(providerId: string, input: EndpointFields): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   const endpoint = parseEndpoint(input);
   if (!providerId) return BAD_INPUT;
   if (typeof endpoint === "string") return fail(endpoint);
-  return run(() => db.saveEndpoint(providerId, endpoint));
+  return run(() => db.saveEndpoint(providerId, endpoint), undefined, () => recordAudit(admin, { action: "provider.endpoint.save", target: providerId, summary: `Saved ${endpoint.service} endpoint`, meta: { service: endpoint.service, method: endpoint.method, active: endpoint.active } }));
 }
 
 export async function setEndpointActive(

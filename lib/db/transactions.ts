@@ -95,7 +95,17 @@ export async function findTransaction(id: string, customerId: string) {
 }
 
 export async function markDebited(id: string): Promise<void> {
-  await getPool().query("update transactions set debited = true, updated_at = now() where id = $1", [id]);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await getPool().query("update transactions set debited = true, updated_at = now() where id = $1", [id]);
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+  }
+  throw lastError;
 }
 
 export async function markRefunded(id: string): Promise<void> {

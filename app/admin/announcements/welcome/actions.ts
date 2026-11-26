@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
 import { POPUP_BODY_LIMIT, POPUP_CTA_LIMIT, POPUP_TITLE_LIMIT, WELCOME_PATH } from "@/lib/admin/announcements";
 import { saveWelcomePopup } from "@/lib/db/announcements";
+import { recordAudit } from "@/lib/db/audit";
 
 export type WelcomeInput = { enabled: boolean; title: string; body: string; ctaLabel: string; ctaHref: string; showAgain: boolean };
 export type WelcomeResult = { ok: true } | { ok: false; error: string };
@@ -11,7 +12,7 @@ const fail = (error: string): WelcomeResult => ({ ok: false, error });
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
 export async function saveWelcome(input: WelcomeInput): Promise<WelcomeResult> {
-  await requirePermission("announcements.manage");
+  const admin = await requirePermission("announcements.manage");
   if (!input || typeof input !== "object") return fail("Check the message and try again.");
   const title = text(input.title);
   const body = text(input.body);
@@ -26,6 +27,7 @@ export async function saveWelcome(input: WelcomeInput): Promise<WelcomeResult> {
 
   try {
     await saveWelcomePopup({ enabled: input.enabled === true, title, body, ctaLabel, ctaHref }, input.showAgain === true);
+    await recordAudit(admin, { action: "welcome.save", summary: input.enabled ? "Updated and enabled the welcome popup" : "Updated and disabled the welcome popup", meta: { enabled: input.enabled, showAgain: input.showAgain === true } });
     revalidatePath(WELCOME_PATH);
     return { ok: true };
   } catch (error) {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminAccess, requirePermission } from "@/lib/admin/auth";
 import { updateCustomerStatus, type CustomerStatus } from "@/lib/db/customers";
 import { isStaffMember } from "@/lib/db/roles";
+import { recordAudit } from "@/lib/db/audit";
 
 export async function setCustomerStatusAction(id: string, status: CustomerStatus) {
   const user = await requirePermission("customers.manage");
@@ -22,6 +23,11 @@ export async function setCustomerStatusAction(id: string, status: CustomerStatus
   try {
     const updated = await updateCustomerStatus(id, status);
     if (!updated) return { ok: false as const, error: "Customer not found." };
+    await recordAudit(user, {
+      action: status === "suspended" ? "customer.suspend" : "customer.reactivate",
+      target: id,
+      summary: status === "suspended" ? "Suspended a customer" : "Reactivated a customer",
+    });
 
     revalidatePath("/admin/users/list");
     return { ok: true as const };

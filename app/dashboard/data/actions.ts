@@ -1,159 +1,63 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireSpursUser } from "@/lib/spurs";
 import { getPlanPriceForPackage } from "@/lib/db/airtime-data";
-import { getCustomerForPurchase, getPurchasablePlan, pickDataProvider } from "@/lib/db/data-purchase";
-import {
-  findTransaction,
-  finishTransaction,
-  markDebited,
-  startTransaction,
-} from "@/lib/db/transactions";
+import { getPurchasablePlan, pickDataProvider } from "@/lib/db/data-purchase";
 import type { PurchaseResult } from "@/lib/data-purchase";
-import { formatNaira } from "@/lib/format";
 import { networkMismatchMessage } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
-import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
-import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
-import { getNairaBalance } from "@/lib/wallet";
-import { quoteCharge, takePayment, refundAndMark } from "@/lib/payment";
-import { onPurchaseSuccess } from "@/lib/rewards";
-import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
-import { firstName } from "@/lib/admin/purchase-templates";
+import {
+  BAD_PHONE,
+  executePurchase,
+  INVALID_PURCHASE,
+  openPurchase,
+  purchaseFail,
+  REFERENCE,
+} from "@/lib/purchase/execute";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const PENDING_MESSAGE =
-  "Your order is being confirmed with the network. Your payment is held, and the status will update in your history.";
-const NO_PAYMENT = "We couldn't take payment from your wallet. Check your balance and try again.";
-const REJECTED = "The network couldn't deliver this plan.";
-
-const fail = (error: string): PurchaseResult => ({ ok: false, error });
+const UNAVAILABLE = "That plan isn't available any more. Refresh the page.";
 
 export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
-  if (!input || typeof input !== "object") {
-    return fail("That purchase isn't valid. Refresh the page and try again.");
-  }
+  if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
   const { planId, phone, reference, skipNetworkCheck, useCashback } = input as Record<string, unknown>;
-  const allowMismatch = skipNetworkCheck === true;
-  if (typeof planId !== "string" || !planId || typeof reference !== "string" || !UUID.test(reference)) {
-    return fail("That purchase isn't valid. Refresh the page and try again.");
+  if (typeof planId !== "string" || !planId || typeof reference !== "string" || !REFERENCE.test(reference)) {
+    return purchaseFail(INVALID_PURCHASE);
   }
-  if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) {
-    return fail("Enter an 11-digit phone number, like 0803 123 4567.");
-  }
+  if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) return purchaseFail(BAD_PHONE);
 
-  const existing = await findTransaction(reference, user.sub);
-  if (existing) {
-    if (existing.status === "success") {
-      return { ok: true, status: "success", message: `${existing.title} was delivered.` };
-    }
-    if (existing.status === "pending") return { ok: true, status: "pending", message: PENDING_MESSAGE };
-    return fail(existing.failureReason ?? "That purchase failed.");
-  }
-
-  const customer = await getCustomerForPurchase(user.sub);
-  if (!customer) return fail("We couldn't find your account. Refresh the page and try again.");
-  if (customer.status === "suspended") return fail("Your account is suspended. Contact support to make purchases.");
+  const opened = await openPurchase("data", user.sub, reference);
+  if ("result" in opened) return opened.result;
 
   const plan = await getPurchasablePlan(planId);
-  if (!plan) return fail("That plan isn't available any more. Refresh the page.");
+  if (!plan) return purchaseFail(UNAVAILABLE);
 
-  const mismatchError = !allowMismatch ? networkMismatchMessage(phone, plan.networkId, plan.networkName) : null;
-  if (mismatchError) return fail(mismatchError);
+  const mismatch = skipNetworkCheck === true ? null : networkMismatchMessage(phone, plan.networkId, plan.networkName);
+  if (mismatch) return purchaseFail(mismatch);
 
-  const price = await getPlanPriceForPackage(plan.id, customer.packageId);
-  if (price === null || !Number.isFinite(price) || price <= 0) {
-    return fail("That plan isn't available any more. Refresh the page.");
-  }
+  const price = await getPlanPriceForPackage(plan.id, opened.customer.packageId);
+  if (price === null || !Number.isFinite(price) || price <= 0) return purchaseFail(UNAVAILABLE);
 
   const providerId = await pickDataProvider(plan.providerId);
-  if (!providerId) return fail("This plan can't be bought right now. Please try again later.");
+  if (!providerId) return purchaseFail("This plan can't be bought right now. Please try again later.");
 
-  const charge = await quoteCharge(user.sub, price, useCashback === true);
-  const balance = await getNairaBalance(user.sub);
-  if (balance !== null && balance < charge.walletPart) {
-    return fail(`Your wallet balance is ${formatNaira(balance)}. Fund your wallet or use cashback to buy this plan.`);
-  }
-
-  const title = `${plan.size} ${plan.networkName} ${plan.typeLabel}`;
-  const started = await startTransaction({
-    id: reference,
-    customerId: user.sub,
+  const recipient = groupPhone(phone);
+  return executePurchase({
     service: "data",
-    title,
-    detail: groupPhone(phone),
-    amount: price,
+    reference,
+    user,
+    useCashback: useCashback === true,
+    price,
     cost: plan.cost,
+    title: `${plan.size} ${plan.networkName} ${plan.typeLabel}`,
+    detail: recipient,
     networkId: plan.networkId,
     planId: plan.id,
     providerId,
     phone,
-    cashbackUsed: charge.cashbackUsed,
+    recipient,
+    providerService: "data",
+    providerVars: { phone, amount: plan.cost, network: plan.networkId, plan: plan.providerPlanId, reference },
   });
-  if (!started) return fail("That purchase is already being processed. Check your history.");
-  const vars = { name: firstName(user.name), item: title, amount: formatNaira(price), recipient: groupPhone(phone) };
-
-  let debited = false;
-  try {
-    debited = await takePayment(user.sub, charge, reference);
-  } catch (error) {
-    console.error("[data-purchase] Wallet debit status unknown", reference, error);
-    try {
-      await finishTransaction(reference, "pending", { reason: "Wallet debit status unknown" });
-    } catch (updateError) {
-      console.error("[data-purchase] Could not record unknown wallet debit status", reference, updateError);
-    }
-    return fail("Something went wrong with your wallet. Check your balance and history before trying again.");
-  }
-
-  if (!debited) {
-    await finishTransaction(reference, "failed", { reason: NO_PAYMENT });
-    return fail(NO_PAYMENT);
-  }
-
-  try {
-    await markDebited(reference);
-  } catch (error) {
-    console.error("[data-purchase] Wallet debited but could not set debited flag", reference, error);
-  }
-
-  let outcome: Outcome = "pending";
-  let response: string | undefined;
-  try {
-    const result = await callProviderEndpoint(providerId, "data", {
-      phone,
-      amount: plan.cost,
-      network: plan.networkId,
-      plan: plan.providerPlanId,
-      reference,
-    });
-    outcome = interpretProviderResponse(result);
-    response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
-  } catch (error) {
-    response = error instanceof Error ? error.message : "Provider call failed";
-    outcome = error instanceof NotSentError ? "failed" : "pending";
-    console.error("[data-purchase] Provider call did not complete", reference, error);
-  }
-
-  if (outcome === "success") {
-    await finishTransaction(reference, "success", { response });
-    await onPurchaseSuccess(reference);
-    revalidatePath("/dashboard");
-    return { ok: true, status: "success", message: await purchaseMessage("data", "success", vars) };
-  }
-
-  if (outcome === "failed") {
-    await finishTransaction(reference, "failed", { reason: REJECTED, response });
-    const refunded = await refundAndMark(user.sub, price, charge.cashbackUsed, reference);
-    revalidatePath("/dashboard");
-    return fail(await purchaseMessage("data", "failed", { ...vars, refund_note: refundNote(refunded) }));
-  }
-
-  await finishTransaction(reference, "pending", { response });
-  revalidatePath("/dashboard");
-  return { ok: true, status: "pending", message: await purchaseMessage("data", "pending", vars) };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import {
   getTransactionState,
+  hasRecordedDebit,
   listPendingIds,
   settlePending,
   type PendingTransactionId,
@@ -15,8 +16,9 @@ type RefundState = "refunded" | "needed" | "none";
 
 /** Refunds a failed purchase once. The `:refund` reference is the ledger idempotency key. */
 async function refundIfNeeded(tx: SettledTransaction): Promise<RefundState> {
-  if (tx.direction !== "debit" || !tx.debited || tx.refunded) return "none";
+  if (tx.direction !== "debit" || tx.refunded) return "none";
   try {
+    if (!tx.debited && !(await hasRecordedDebit(tx.id))) return "none";
     if (await refundPurchase(tx.customerId, tx.amount, tx.cashbackUsed, tx.id)) {
       await markRefunded(tx.id);
       return "refunded";
@@ -59,14 +61,13 @@ export type FailPendingReport = {
   failed: number;
   refunded: number;
   refundNeeded: number;
-  unverified: number;
 };
 
 export async function failPending(
   olderThanMinutes: number,
   reason: string,
 ): Promise<FailPendingReport> {
-  const report: FailPendingReport = { failed: 0, refunded: 0, refundNeeded: 0, unverified: 0 };
+  const report: FailPendingReport = { failed: 0, refunded: 0, refundNeeded: 0 };
   let cursor: PendingTransactionId | null = null;
 
   while (true) {
@@ -79,10 +80,6 @@ export async function failPending(
         const settled = await settlePending(transaction.id, "failed", { reason });
         if (!settled) continue;
         report.failed += 1;
-        if (!settled.debited) {
-          report.unverified += 1;
-          continue;
-        }
         const refund = await refundIfNeeded(settled);
         if (refund === "refunded") report.refunded += 1;
         if (refund === "needed") report.refundNeeded += 1;

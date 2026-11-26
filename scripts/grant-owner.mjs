@@ -1,7 +1,6 @@
 // Usage: node --env-file=.env scripts/grant-owner.mjs <spurs-id | email | username | phone> [--revoke]
 import pg from "pg";
 
-const TENANT = "00000000-0000-0000-0000-000000000001";
 const [, , identifier, flag] = process.argv;
 
 if (!identifier) {
@@ -18,9 +17,8 @@ try {
   const { rows } = await pool.query(
     `select c.id, c.name, c.username, c.email
        from customers c
-       join workspace_customers wc on wc.customer_id = c.id and wc.workspace_id = $3
       where lower(c.username) = $1 or lower(c.email) = $1 or c.phone = $2 or c.id = $2`,
-    [key, typed, TENANT],
+    [key, typed],
   );
 
   if (rows.length === 0) throw new Error("No customer found. They need to log in to Spur VTU once first.");

@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/admin/auth";
 import { slugify } from "@/lib/admin/airtime-data";
 import { isPermission } from "@/lib/admin/permissions";
 import { ROLES_PATH } from "@/lib/admin/roles";
+import { recordAudit } from "@/lib/db/audit";
 import * as db from "@/lib/db/roles";
 import type { RoleFields } from "@/lib/db/roles";
 
@@ -36,10 +37,11 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
 
 async function run(
   fn: () => Promise<boolean>,
-  options: { id?: string; fk?: string } = {},
+  options: { id?: string; fk?: string; log?: () => Promise<void> } = {},
 ): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await options.log?.();
     revalidatePath(ROLES_PATH);
     revalidatePath("/admin");
     return { ok: true, id: options.id };
@@ -63,47 +65,62 @@ function parseRole(input: unknown): RoleFields | string {
 }
 
 export async function createRole(input: RoleFields): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   const role = parseRole(input);
   if (typeof role === "string") return fail(role);
   const id = slugify(role.name);
-  return run(() => db.createRole(id, role), { id });
+  return run(() => db.createRole(id, role), {
+    id,
+    log: () => recordAudit(admin, { action: "role.create", target: id, summary: `Created role ${role.name}`, meta: { permissions: role.permissions } }),
+  });
 }
 
 export async function updateRole(id: string, input: RoleFields): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   const role = parseRole(input);
   if (typeof id !== "string" || !id || typeof role === "string") {
     return typeof role === "string" ? fail(role) : BAD_INPUT;
   }
-  return run(() => db.updateRole(id, role));
+  const before = await db.getRole(id);
+  return run(() => db.updateRole(id, role), {
+    log: () => recordAudit(admin, { action: "role.update", target: id, summary: `Updated role ${role.name}`, meta: { before: before?.permissions, after: role.permissions } }),
+  });
 }
 
 export async function removeRole(id: string): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   if (typeof id !== "string" || !id) return BAD_INPUT;
   return run(() => db.deleteRole(id), {
     fk: "Staff still have this role. Move them to another role first.",
+    log: () => recordAudit(admin, { action: "role.delete", target: id, summary: `Deleted role ${id}` }),
   });
 }
 
 export async function addStaff(identifier: string, roleId: string): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   const who = clean(identifier);
   if (who.length < 2 || who.length > 100 || typeof roleId !== "string" || !roleId) {
     return fail("Enter a username, email, phone number or Spurs ID.");
   }
-  return run(() => db.addStaff(who, roleId), { fk: "That role no longer exists. Refresh the page." });
+  return run(() => db.addStaff(who, roleId), {
+    fk: "That role no longer exists. Refresh the page.",
+    log: () => recordAudit(admin, { action: "staff.add", target: who, summary: `Added ${who} to staff as ${roleId}` }),
+  });
 }
 
 export async function changeStaffRole(id: string, roleId: string): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   if (typeof id !== "string" || !id || typeof roleId !== "string" || !roleId) return BAD_INPUT;
-  return run(() => db.setStaffRole(id, roleId), { fk: "That role no longer exists. Refresh the page." });
+  return run(() => db.setStaffRole(id, roleId), {
+    fk: "That role no longer exists. Refresh the page.",
+    log: () => recordAudit(admin, { action: "staff.role", target: id, summary: `Changed staff role to ${roleId}` }),
+  });
 }
 
 export async function removeStaff(id: string): Promise<ActionResult> {
-  await requirePermission("roles.manage");
+  const admin = await requirePermission("roles.manage");
   if (typeof id !== "string" || !id) return BAD_INPUT;
-  return run(() => db.deleteStaff(id));
+  return run(() => db.deleteStaff(id), {
+    log: () => recordAudit(admin, { action: "staff.remove", target: id, summary: "Removed a staff member" }),
+  });
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
 import * as db from "@/lib/db/payment-providers";
+import { recordAudit } from "@/lib/db/audit";
 
 export type PaymentActionResult = { ok: true } | { ok: false; error: string };
 
@@ -26,7 +27,7 @@ function parseSettings(input: unknown):
 }
 
 export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   const settings = parseSettings(input);
   if (typeof settings === "string") return fail(settings);
 
@@ -43,6 +44,7 @@ export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentAc
     }
     revalidatePath("/admin/gateways/payment");
     revalidatePath("/fund-wallet");
+    await recordAudit(admin, { action: "payment.flutterwave.save", summary: settings.enabled ? "Saved and enabled Flutterwave" : "Saved and disabled Flutterwave", meta: { enabled: settings.enabled, fieldsChanged: ["publicKey", "secretKey", "webhookHash"] } });
     return { ok: true };
   } catch (error) {
     console.error("[payment-gateway] Failed to save Flutterwave settings", error);
@@ -51,7 +53,7 @@ export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentAc
 }
 
 export async function deleteFlutterwaveProvider(): Promise<PaymentActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   try {
     const result = await db.deleteFlutterwaveProvider();
     if (result === "not_found") return fail("Flutterwave is not configured.");
@@ -60,6 +62,7 @@ export async function deleteFlutterwaveProvider(): Promise<PaymentActionResult> 
     }
     revalidatePath("/admin/gateways/payment");
     revalidatePath("/fund-wallet");
+    await recordAudit(admin, { action: "payment.flutterwave.delete", summary: "Deleted Flutterwave configuration" });
     return { ok: true };
   } catch (error) {
     console.error("[payment-gateway] Failed to delete Flutterwave settings", error);

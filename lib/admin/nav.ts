@@ -1,4 +1,4 @@
-import { Calculator, CreditCard, Gift, LayoutDashboard, Megaphone, Network, Package, Receipt, Users, Webhook } from "lucide-react";
+import { Calculator, CreditCard, Gift, LayoutDashboard, Megaphone, Network, Package, Receipt, ScrollText, Users, Webhook } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
 import type { NavGroup } from "@/lib/nav";
 
@@ -71,6 +71,7 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { label: "History", href: "/admin/transactions/list", icon: Receipt, permission: "transactions.view" },
       { label: "Calculator", href: "/admin/transactions/calculator", icon: Calculator, permission: "transactions.view" },
+      { label: "Audit log", href: "/admin/audit", icon: ScrollText, permission: "audit.view" },
     ],
   },
 ];

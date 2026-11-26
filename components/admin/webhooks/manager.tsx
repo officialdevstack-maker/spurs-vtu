@@ -8,6 +8,7 @@ import { Field, FormError, Modal, btnDanger, btnGhost, btnIcon, btnPrimary, inpu
 import {
   MAX_MINUTES,
   MIN_AUTO_FAIL_MINUTES,
+  MIN_FAIL_NOW_MINUTES,
   RESULT_LABELS,
   type PendingSummary,
   type ProviderWebhook,
@@ -95,8 +96,8 @@ export function WebhooksManager({
     if (!dialog || saving) return;
     if (dialog.kind === "fail-now") {
       const minutes = Number(age);
-      if (!Number.isInteger(minutes) || minutes < 0 || minutes > MAX_MINUTES) {
-        setDialogError(`Enter a whole number from 0 to ${MAX_MINUTES} minutes.`);
+      if (!Number.isInteger(minutes) || minutes < MIN_FAIL_NOW_MINUTES || minutes > MAX_MINUTES) {
+        setDialogError(`Enter a whole number from ${MIN_FAIL_NOW_MINUTES} to ${MAX_MINUTES} minutes.`);
         return;
       }
     }
@@ -195,13 +196,13 @@ export function WebhooksManager({
             <Field
               id={`${base}-age`}
               label="Fail pending older than (minutes)"
-              hint="0 fails every pending purchase, including brand new ones."
+              hint={`Minimum ${MIN_FAIL_NOW_MINUTES} minutes, so orders still in flight aren't failed.`}
             >
               <input
                 id={`${base}-age`}
                 type="number"
                 inputMode="numeric"
-                min={0}
+                min={MIN_FAIL_NOW_MINUTES}
                 max={MAX_MINUTES}
                 step={1}
                 value={age}
@@ -326,7 +327,7 @@ export function WebhooksManager({
         >
           <p className="text-base text-gray-600 dark:text-[#9FB3B7]">
             {dialog.kind === "fail-now"
-              ? `Every pending purchase older than ${Number(age) || 0} minutes will be marked failed and refunded to the customer's wallet. If a provider delivers one later, the customer may already have been refunded.`
+              ? `Every pending purchase older than ${Number(age) || MIN_FAIL_NOW_MINUTES} minutes will be marked failed and refunded to the customer's wallet. If a provider delivers one later, the customer may already have been refunded.`
               : `The current URL for ${dialog.provider.name} will stop working immediately. Update the callback URL on the provider's website after creating the new one.`}
           </p>
           {dialogError && (

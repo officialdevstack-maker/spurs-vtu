@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
 import { REFERRALS_PATH, type ReferralSettings } from "@/lib/admin/referrals";
 import { saveReferralSettings } from "@/lib/db/referrals";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ReferralActionResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): ReferralActionResult => ({ ok: false, error });
@@ -12,7 +13,7 @@ const money = (value: unknown, max: number): value is number =>
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
 export async function saveReferrals(input: ReferralSettings): Promise<ReferralActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!input || typeof input !== "object" || typeof input.enabled !== "boolean") {
     return fail("Check the referral settings and try again.");
   }
@@ -31,6 +32,7 @@ export async function saveReferrals(input: ReferralSettings): Promise<ReferralAc
       minPurchase: round2(input.minPurchase),
       monthlyLimit: input.monthlyLimit,
     });
+    await recordAudit(admin, { action: "referral.settings", summary: input.enabled ? "Updated referral settings" : "Disabled referrals", meta: { enabled: input.enabled, referrerReward: input.referrerReward, refereeReward: input.refereeReward, minPurchase: input.minPurchase, monthlyLimit: input.monthlyLimit } });
     revalidatePath(REFERRALS_PATH);
     revalidatePath("/dashboard/referrals");
     return { ok: true };

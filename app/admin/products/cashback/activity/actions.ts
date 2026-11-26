@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/admin/auth";
 import { CASHBACK_ACTIVITY_PATH } from "@/lib/admin/cashback";
 import { changeCashbackBalance } from "@/lib/db/cashback";
 import { findCustomerByIdentifier } from "@/lib/db/customers";
+import { recordAudit } from "@/lib/db/audit";
 
 export type AdjustResult = { ok: true; message: string } | { ok: false; error: string };
 const fail = (error: string): AdjustResult => ({ ok: false, error });
@@ -40,6 +41,12 @@ export async function adjustCashback(input: unknown): Promise<AdjustResult> {
       createdBy: admin.sub,
     });
     if (!done) return fail("That customer doesn't have enough cashback to remove.");
+    await recordAudit(admin, {
+      action: "cashback.adjust",
+      target: customer.id,
+      summary: `${raw.direction === "credit" ? "Added" : "Removed"} ₦${amount.toFixed(2)} cashback: ${note}`,
+      meta: { amount, direction: raw.direction, note },
+    });
     revalidatePath(CASHBACK_ACTIVITY_PATH);
     revalidatePath("/dashboard/bonus");
     return { ok: true, message: `Done for ${customer.username ? `@${customer.username}` : (customer.name ?? "customer")}.` };

@@ -8,6 +8,7 @@ import type { PackageDiscount } from "@/lib/admin/electricity";
 import { ELECTRICITY_PATH as USER_ELECTRICITY_PATH } from "@/lib/electricity-purchase";
 import * as db from "@/lib/db/electricity";
 import type { DiscoFields } from "@/lib/db/electricity";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -31,9 +32,10 @@ function dbError(error: unknown): ActionResult {
   return fail("Something went wrong saving that. Try again.");
 }
 
-async function run(fn: () => Promise<boolean>, id?: string): Promise<ActionResult> {
+async function run(fn: () => Promise<boolean>, id?: string, log?: () => Promise<void>): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await log?.();
     revalidatePath(ELECTRICITY_PATH);
     revalidatePath(USER_ELECTRICITY_PATH);
     return { ok: true, id };
@@ -96,18 +98,19 @@ function parseDisco(input: unknown): DiscoFields | string {
 }
 
 export async function createDisco(input: DiscoFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const disco = parseDisco(input);
   if (typeof disco === "string") return fail(disco);
-  return run(() => db.createDisco(slugify(disco.name), disco), slugify(disco.name));
+  const id = slugify(disco.name);
+  return run(() => db.createDisco(id, disco), id, () => recordAudit(admin, { action: "electricity.disco.create", target: id, summary: `Created disco ${disco.name}`, meta: { enabled: disco.enabled, discount: disco.discount } }));
 }
 
 export async function updateDisco(id: string, input: DiscoFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const disco = parseDisco(input);
   if (!id) return BAD_INPUT;
   if (typeof disco === "string") return fail(disco);
-  return run(() => db.updateDisco(id, disco));
+  return run(() => db.updateDisco(id, disco), undefined, () => recordAudit(admin, { action: "electricity.disco.update", target: id, summary: `Updated disco ${id}`, meta: { enabled: disco.enabled, discount: disco.discount } }));
 }
 
 export async function setDiscoEnabled(id: string, enabled: boolean): Promise<ActionResult> {

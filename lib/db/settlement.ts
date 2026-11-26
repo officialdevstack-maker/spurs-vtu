@@ -1,5 +1,6 @@
 import "server-only";
 import { getPool } from "@/lib/db";
+import { hasUnreversedDebit } from "@/lib/settlement-ledger";
 import type { TxStatus } from "@/lib/dashboard-data";
 
 export type SettledTransaction = {
@@ -13,6 +14,22 @@ export type SettledTransaction = {
 };
 
 export type PendingTransactionId = { id: string; createdAt: Date };
+
+export async function hasRecordedDebit(id: string): Promise<boolean> {
+  const { rows } = await getPool().query<{
+    wallet_debit: boolean;
+    cashback_debit: boolean;
+    cashback_undo: boolean;
+  }>(
+    `select
+       exists(select 1 from vtu_wallet_ledger where reference = $1 and direction = 'debit') as wallet_debit,
+       exists(select 1 from cashback_ledger where reference = $2 and direction = 'debit') as cashback_debit,
+       exists(select 1 from cashback_ledger where reference = $3 and direction = 'credit') as cashback_undo`,
+    [id, `${id}:cb`, `${id}:cb-undo`],
+  );
+  const row = rows[0];
+  return row ? hasUnreversedDebit(row.wallet_debit, row.cashback_debit, row.cashback_undo) : false;
+}
 
 /**
  * Moves a transaction out of 'pending' exactly once. Returns null if it was not pending

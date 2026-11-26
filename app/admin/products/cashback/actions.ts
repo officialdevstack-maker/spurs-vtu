@@ -4,13 +4,14 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
 import { CASHBACK_PATH, CASHBACK_SERVICES, MAX_CASHBACK_PERCENT, type CashbackRule, type CashbackSettings } from "@/lib/admin/cashback";
 import { saveCashbackSettings } from "@/lib/db/cashback";
+import { recordAudit } from "@/lib/db/audit";
 
 export type CashbackActionResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): CashbackActionResult => ({ ok: false, error });
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 export async function saveCashback(input: CashbackSettings): Promise<CashbackActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!input || typeof input !== "object" || typeof input.enabled !== "boolean" || !Array.isArray(input.rules)) {
     return fail("Check the cashback settings and try again.");
   }
@@ -43,6 +44,7 @@ export async function saveCashback(input: CashbackSettings): Promise<CashbackAct
 
   try {
     await saveCashbackSettings({ enabled: input.enabled, rules });
+    await recordAudit(admin, { action: "cashback.settings", summary: input.enabled ? "Enabled cashback settings" : "Disabled cashback", meta: { enabled: input.enabled, ruleCount: rules.length } });
     revalidatePath(CASHBACK_PATH);
     revalidatePath("/dashboard/bonus");
     return { ok: true };

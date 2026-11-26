@@ -6,11 +6,20 @@ import { requireSpursUser } from "@/lib/spurs";
 import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { changeCustomerPackage, getCustomerPackage, getPackage } from "@/lib/db/packages";
-import { debitWallet } from "@/lib/wallet";
+import { creditWallet, debitWallet } from "@/lib/wallet";
 
 export type UpgradeResult = { ok: true } | { ok: false; error: string };
 
 const fail = (error: string): UpgradeResult => ({ ok: false, error });
+
+async function refundUpgradeFee(customerId: string, fee: number, reference: string, charged: boolean) {
+  if (!charged || fee <= 0) return;
+  try {
+    await creditWallet(customerId, fee, `${reference}:refund`);
+  } catch (error) {
+    console.error("[packages] Refund needed", reference, error);
+  }
+}
 
 export async function upgradePackage(packageId: string): Promise<UpgradeResult> {
   const user = await requireSpursUser();
@@ -26,18 +35,22 @@ export async function upgradePackage(packageId: string): Promise<UpgradeResult> 
   if (target.sortOrder <= current.sortOrder) return fail("You can only upgrade to a higher package.");
 
   const reference = randomUUID();
+  let charged = false;
   try {
     if (target.upgradeFee > 0) {
       const paid = await debitWallet(user.sub, target.upgradeFee, reference);
       if (!paid) return fail("We couldn't take the fee from your wallet. Check your balance and try again.");
+      charged = true;
     }
 
     if (!(await changeCustomerPackage(user.sub, current.id, target.id, target.upgradeFee, reference))) {
-      if (target.upgradeFee > 0) console.error("[packages] Charged but not moved, refund needed", reference);
-      return fail("Your package changed while you were upgrading. Refresh the page.");
+      await refundUpgradeFee(user.sub, target.upgradeFee, reference, charged);
+      return fail("Your package changed while you were upgrading. You weren't charged. Refresh the page.");
     }
   } catch (error) {
     console.error("[packages] Upgrade failed", reference, error);
+    const now = await getCustomerPackage(user.sub).catch(() => null);
+    if (charged && now && now.id !== target.id) await refundUpgradeFee(user.sub, target.upgradeFee, reference, charged);
     return fail("Something went wrong. Check your wallet before trying again.");
   }
 
