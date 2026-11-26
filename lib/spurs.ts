@@ -2,7 +2,7 @@ import "server-only";
 import { createSpursNext } from "@spurs/auth/next";
 
 export const spurs = createSpursNext({
-  publicPaths: ["/", "/login", "/r", "/api/v1", "/api/webhooks", "/api/cron", "/.well-known/spurs-business.json"],
+  publicPaths: ["/", "/login", "/r", "/receipts", "/sw.js", "/manifest.webmanifest", "/icons", "/api/v1", "/api/webhooks", "/api/cron", "/.well-known/spurs-business.json"],
 });
 
 export const getSpursUser = () => spurs.getUser();

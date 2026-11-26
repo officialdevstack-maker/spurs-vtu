@@ -4,6 +4,7 @@ import { getNotifyTarget, insertNotificationOnce } from "@/lib/db/notify";
 import { getProfileSettings } from "@/lib/db/profile";
 import { externalChannels, type NotifyCategory } from "@/lib/notify-rules";
 import { deliver } from "@/lib/messaging/send";
+import { pushToCustomer } from "@/lib/push";
 
 export type NotifyEvent = {
   /** Stable and unique per event, e.g. `tx-${reference}`. Repeats are ignored. */
@@ -11,6 +12,8 @@ export type NotifyEvent = {
   category: NotifyCategory;
   title: string;
   body: string;
+  /** Where a push tap should open, e.g. `/dashboard/transactions/${reference}`. */
+  url?: string;
 };
 
 const SMS_MAX = 320;
@@ -29,7 +32,12 @@ export async function notify(customerId: string, event: NotifyEvent): Promise<vo
       getNotifyTarget(customerId),
       getProfileSettings(customerId),
     ]);
-    if (!target) return;
+    if (!target) {
+      if (externalChannels(event.category, settings).includes("push")) {
+        await pushToCustomer(customerId, { title: event.title, body: event.body, url: event.url, tag: event.id });
+      }
+      return;
+    }
 
     const channels = externalChannels(event.category, settings);
     const base = process.env.APP_URL?.trim().replace(/\/$/, "") ?? "";
@@ -59,6 +67,9 @@ export async function notify(customerId: string, event: NotifyEvent): Promise<vo
 
     if (channels.includes("sms") && target.phone) {
       jobs.push(deliver("sms", recipient, event.title, `${event.title}: ${event.body}`.slice(0, SMS_MAX)));
+    }
+    if (channels.includes("push")) {
+      jobs.push(pushToCustomer(customerId, { title: event.title, body: event.body, url: event.url, tag: event.id }));
     }
 
     const results = await Promise.allSettled(jobs);

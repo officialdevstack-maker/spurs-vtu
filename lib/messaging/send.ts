@@ -1,6 +1,7 @@
 import "server-only";
 import { normalizePhone, PHONE_PATTERN } from "@/lib/phone";
 import type { ChannelAvailability, Recipient } from "@/lib/admin/announcements";
+import { pushConfigured, pushToCustomer } from "@/lib/push";
 
 const TIMEOUT_MS = 10_000;
 
@@ -11,7 +12,9 @@ export function channelAvailability(): ChannelAvailability {
     system: { available: true },
     email: email ? { available: true } : { available: false, reason: "Set RESEND_API_KEY and MAIL_FROM to turn this on." },
     sms: sms ? { available: true } : { available: false, reason: "Set TERMII_API_KEY and TERMII_SENDER_ID to turn this on." },
-    push: { available: false, reason: "Not set up yet: customer devices aren't registered." },
+    push: pushConfigured()
+      ? { available: true }
+      : { available: false, reason: "Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT to turn this on." },
   };
 }
 
@@ -64,6 +67,7 @@ export async function deliver(
       await sendSms(phone, body);
       return "sent";
     }
+    if (channel === "push") return await pushToCustomer(recipient.id, { title: subject, body });
     return "failed";
   } catch (error) {
     console.error(`[messaging] ${channel} delivery failed`, recipient.id, error instanceof Error ? error.message : error);

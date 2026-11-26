@@ -39,6 +39,7 @@ async function announce(tx: SettledTransaction, outcome: "success" | "failed", r
     id: `tx-${tx.id}`,
     category: "transaction",
     title: outcome === "success" ? "Purchase successful" : "Purchase failed",
+    url: `/dashboard/transactions/${tx.id}`,
     body:
       outcome === "success"
         ? `${item} went through.`

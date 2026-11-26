@@ -7,6 +7,7 @@ import { getFlutterwaveAccount } from "@/lib/db/wallet";
 import { requireSpursUser } from "@/lib/spurs";
 import { PinSettings } from "@/components/dashboard/pin-settings";
 import { getPinState } from "@/lib/db/pin";
+import { PushToggle } from "@/components/dashboard/push-toggle";
 
 export const metadata: Metadata = { title: "Profile | Spur VTU" };
 export const instant = false;
@@ -43,6 +44,7 @@ export default async function ProfilePage() {
         settings={settings}
       />
       <PinSettings hasPin={pinState.hasPin} />
+      <PushToggle publicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
     </div>
   );
 }

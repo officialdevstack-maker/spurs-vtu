@@ -54,10 +54,10 @@ export async function processBroadcast(id: string, budgetMs = 25_000): Promise<v
         tally(results, "system", "sent", inserted);
       }
 
-      for (const channel of ["email", "sms"] as const) {
+      for (const channel of ["email", "sms", "push"] as const) {
         if (!job.channels.includes(channel)) continue;
         await runPool(chunk, CONCURRENCY, async (r) => {
-          const optedIn = channel === "email" ? r.notifyEmail : r.notifySms;
+          const optedIn = channel === "email" ? r.notifyEmail : channel === "sms" ? r.notifySms : r.notifyPush;
           if (!r.notifyPromotions || !optedIn) {
             tally(results, channel, "skipped");
             return;

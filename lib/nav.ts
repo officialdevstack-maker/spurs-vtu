@@ -11,6 +11,7 @@ import {
   Wifi,
   Zap,
   Users,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
@@ -35,6 +36,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
       { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
+      { label: "Support", href: "/dashboard/support", icon: LifeBuoy },
       { label: "Profile", href: "/dashboard/profile", icon: User },
     ],
   },

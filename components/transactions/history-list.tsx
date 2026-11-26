@@ -126,7 +126,18 @@ export function HistoryList({
             </span>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{tx.title}</p>
+              <p className="truncate font-medium">
+                {admin ? (
+                  tx.title
+                ) : (
+                  <Link
+                    href={`/dashboard/transactions/${encodeURIComponent(tx.id)}`}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {tx.title}
+                  </Link>
+                )}
+              </p>
               <p className="truncate text-sm text-gray-600 dark:text-[#9FB3B7]">
                 {who ? `${who} · ` : ""}
                 {tx.detail ? `${tx.detail} · ` : ""}

@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   "roles.manage",
   "settings.manage",
   "audit.view",
+  "support.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -93,6 +94,13 @@ export const PERMISSION_GROUPS: {
     label: "Audit log",
     permissions: [
       { id: "audit.view", label: "View audit log", hint: "See who changed settings, prices, roles and balances." },
+    ],
+  },
+  {
+    id: "support",
+    label: "Support",
+    permissions: [
+      { id: "support.manage", label: "Handle support tickets", hint: "Read and reply to customer tickets, and close or reopen them." },
     ],
   },
 ];

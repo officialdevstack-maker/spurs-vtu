@@ -18,6 +18,7 @@ import { onPurchaseSuccess } from "@/lib/rewards";
 import { getNairaBalance } from "@/lib/wallet";
 import { verifyPin } from "@/lib/db/pin";
 import { recordAttempt, switchProvider, type Route } from "@/lib/db/failover";
+import { screenPurchase } from "@/lib/fraud";
 
 export const REFERENCE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const INVALID_PURCHASE = "That purchase isn't valid. Refresh the page and try again.";
@@ -106,6 +107,9 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
   const { service, reference, user } = spec;
   const copy = COPY[service];
   const tag = `[${service}-purchase]`;
+
+  const screened = await screenPurchase({ customerId: user.sub, price: spec.price, reference });
+  if (!screened.allow) return purchaseFail(screened.message);
 
   const charge = await quoteCharge(user.sub, spec.price, spec.useCashback);
   const balance = await getNairaBalance(user.sub);
@@ -225,6 +229,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
         category: "transaction",
         title: "Purchase successful",
         body: `${spec.title} ${copy.done}.`,
+        url: `/dashboard/transactions/${reference}`,
       }),
     );
     revalidatePath("/dashboard");
@@ -240,6 +245,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
         category: "transaction",
         title: "Purchase failed",
         body: `${spec.title}: ${copy.rejected} ${refundNote(refunded)}`,
+        url: `/dashboard/transactions/${reference}`,
       }),
     );
     revalidatePath("/dashboard");
