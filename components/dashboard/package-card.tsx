@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { formatNaira } from "@/lib/format";
+import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
 import type { DashboardData } from "@/lib/dashboard-data";
 
 export function PackageCard({ pkg }: { pkg: DashboardData["package"] }) {
@@ -51,7 +52,7 @@ export function PackageCard({ pkg }: { pkg: DashboardData["package"] }) {
       )}
 
       <Link
-        href="/packages"
+        href={CUSTOMER_PACKAGES_PATH}
         className="mt-5 inline-block rounded text-sm font-semibold underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632]"
       >
         See all packages

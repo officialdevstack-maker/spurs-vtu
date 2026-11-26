@@ -17,6 +17,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { WelcomeModal } from "@/components/dashboard/welcome-modal";
 import { renderTemplate } from "@/lib/admin/announcements";
 import { getUnseenWelcome } from "@/lib/db/announcements";
+import { getCashbackBalance } from "@/lib/cashback";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -29,7 +30,7 @@ async function DashboardContent() {
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
   const now = new Date();
 
-  const [balance, transactions, spend, welcome] = user
+  const [balance, transactions, spend, welcome, cashback] = user
     ? await Promise.all([
         getNairaBalance(user.sub),
         getRecentTransactions(user.sub),
@@ -38,8 +39,9 @@ async function DashboardContent() {
           console.error("[welcome] Could not load popup", error);
           return null;
         }),
+        getCashbackBalance(user.sub),
       ])
-    : [null, [], { total: 0, byService: [] }, null];
+    : [null, [], { total: 0, byService: [] }, null, 0];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -97,7 +99,7 @@ async function DashboardContent() {
         </div>
       )}
 
-      <BalanceCards wallet={balance} bonus={data.bonus.balance} />
+      <BalanceCards wallet={balance} bonus={cashback} />
 
       <QuickServices />
 

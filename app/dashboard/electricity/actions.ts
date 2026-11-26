@@ -8,7 +8,6 @@ import {
   findTransaction,
   finishTransaction,
   markDebited,
-  markRefunded,
   startTransaction,
 } from "@/lib/db/transactions";
 import { METER_PATTERN, METER_TYPES, electricityPrice } from "@/lib/electricity-purchase";
@@ -17,7 +16,9 @@ import { formatNaira, formatNumber } from "@/lib/format";
 import { PHONE_PATTERN } from "@/lib/phone";
 import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
-import { creditWallet, debitWallet, getNairaBalance } from "@/lib/wallet";
+import { getNairaBalance } from "@/lib/wallet";
+import { quoteCharge, takePayment, refundAndMark } from "@/lib/payment";
+import { awardCashback } from "@/lib/cashback";
 import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
 import { firstName } from "@/lib/admin/purchase-templates";
 
@@ -46,24 +47,11 @@ function findToken(data: unknown, depth = 0): string | null {
   return findToken(record.data, depth + 1);
 }
 
-async function refund(customerId: string, amount: number, reference: string): Promise<boolean> {
-  try {
-    if (await creditWallet(customerId, amount, `${reference}:refund`)) {
-      await markRefunded(reference);
-      return true;
-    }
-  } catch (error) {
-    console.error("[electricity-purchase] Refund call failed", reference, error);
-  }
-  console.error("[electricity-purchase] Refund needed", reference);
-  return false;
-}
-
 export async function purchaseElectricity(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return fail(INVALID);
 
-  const { discoId, meterType, meter, amount, phone, reference } = input as Record<string, unknown>;
+  const { discoId, meterType, meter, amount, phone, reference, useCashback } = input as Record<string, unknown>;
   const type = METER_TYPES.find((item) => item.id === meterType);
   if (
     typeof discoId !== "string" ||
@@ -102,9 +90,10 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
   const providerId = await pickElectricityProvider(quote.providerId);
   if (!providerId) return fail("Electricity can't be bought right now. Please try again later.");
 
+  const charge = await quoteCharge(user.sub, price, useCashback === true);
   const balance = await getNairaBalance(user.sub);
-  if (balance !== null && balance < price) {
-    return fail(`Your wallet balance is ${formatNaira(balance)}. Fund your wallet to buy this electricity.`);
+  if (balance !== null && balance < charge.walletPart) {
+    return fail(`Your wallet balance is ${formatNaira(balance)}. Fund your wallet or use cashback to buy this electricity.`);
   }
 
   const title = `₦${formatNumber(amount)} ${quote.name} ${type.label.toLowerCase()} electricity`;
@@ -120,13 +109,14 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
     planId: null,
     providerId,
     phone,
+    cashbackUsed: charge.cashbackUsed,
   });
   if (!started) return fail("That purchase is already being processed. Check your history.");
   const vars = { name: firstName(user.name), item: title, amount: formatNaira(price), recipient: meter };
 
   let debited = false;
   try {
-    debited = await debitWallet(user.sub, price, reference);
+    debited = await takePayment(user.sub, charge, reference);
   } catch (error) {
     console.error("[electricity-purchase] Wallet debit status unknown", reference, error);
     try {
@@ -171,6 +161,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
 
   if (outcome === "success") {
     await finishTransaction(reference, "success", { response });
+    await awardCashback(reference);
     revalidatePath("/dashboard");
     const tokenNote = token ? ` Token: ${token}` : type.id === "prepaid" ? " Your token will be sent to your phone." : "";
     return { ok: true, status: "success", message: await purchaseMessage("electricity", "success", { ...vars, token_note: tokenNote }) };
@@ -178,7 +169,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
 
   if (outcome === "failed") {
     await finishTransaction(reference, "failed", { reason: REJECTED, response });
-    const refunded = await refund(user.sub, price, reference);
+    const refunded = await refundAndMark(user.sub, price, charge.cashbackUsed, reference);
     revalidatePath("/dashboard");
     return fail(await purchaseMessage("electricity", "failed", { ...vars, refund_note: refundNote(refunded) }));
   }

@@ -6,6 +6,7 @@ import { AirtimePurchase } from "@/components/dashboard/airtime-purchase";
 import { getAirtimeCatalog } from "@/lib/db/airtime-purchase";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { getNairaBalance } from "@/lib/wallet";
+import { getCashbackBalance } from "@/lib/cashback";
 
 export const metadata: Metadata = { title: "Buy airtime | Spur VTU" };
 export const instant = false;
@@ -13,10 +14,11 @@ export const instant = false;
 export default async function BuyAirtimePage() {
   await connection();
   const user = await requireSpursUser();
-  const [customer, networks, balance] = await Promise.all([
+  const [customer, networks, balance, cashback] = await Promise.all([
     getCustomerForPurchase(user.sub),
     getAirtimeCatalog(),
     getNairaBalance(user.sub),
+    getCashbackBalance(user.sub),
   ]);
 
   return (
@@ -43,7 +45,7 @@ export default async function BuyAirtimePage() {
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Please check back soon.</p>
         </div>
       ) : (
-        <AirtimePurchase networks={networks} balance={balance} defaultPhone={customer?.phone ?? undefined} />
+        <AirtimePurchase networks={networks} balance={balance} cashback={cashback} defaultPhone={customer?.phone ?? undefined} />
       )}
     </div>
   );

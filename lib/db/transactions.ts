@@ -15,6 +15,7 @@ export type NewTransaction = {
   planId: string | null;
   providerId: string | null;
   phone: string | null;
+  cashbackUsed?: number;
 };
 
 export type HistoryFilters = {
@@ -62,8 +63,8 @@ type HistoryRow = {
 export async function startTransaction(transaction: NewTransaction): Promise<boolean> {
   const result = await getPool().query(
     `insert into transactions
-       (id, customer_id, service, title, detail, amount, cost, network_id, plan_id, provider_id, phone)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       (id, customer_id, service, title, detail, amount, cost, network_id, plan_id, provider_id, phone, cashback_used)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      on conflict (id) do nothing`,
     [
       transaction.id,
@@ -77,6 +78,7 @@ export async function startTransaction(transaction: NewTransaction): Promise<boo
       transaction.planId,
       transaction.providerId,
       transaction.phone,
+      transaction.cashbackUsed ?? 0,
     ],
   );
   return (result.rowCount ?? 0) > 0;

@@ -7,6 +7,7 @@ import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { getElectricityCatalog } from "@/lib/db/electricity";
 import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
+import { getCashbackBalance } from "@/lib/cashback";
 
 export const metadata: Metadata = { title: "Buy electricity | Spur VTU" };
 export const instant = false;
@@ -15,10 +16,11 @@ export default async function BuyElectricityPage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [discos, balance, pkg] = await Promise.all([
+  const [discos, balance, pkg, cashback] = await Promise.all([
     getElectricityCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
+    getCashbackBalance(user.sub),
   ]);
 
   return (
@@ -43,7 +45,7 @@ export default async function BuyElectricityPage() {
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Please check back soon.</p>
         </div>
       ) : (
-        <ElectricityPurchase discos={discos} balance={balance} defaultPhone={customer?.phone ?? undefined} />
+        <ElectricityPurchase discos={discos} balance={balance} cashback={cashback} defaultPhone={customer?.phone ?? undefined} />
       )}
     </div>
   );

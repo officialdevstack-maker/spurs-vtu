@@ -11,6 +11,7 @@ import { formatNaira } from "@/lib/format";
 import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseData } from "@/app/dashboard/data/actions";
+import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 
 type Errors = { plan?: string; phone?: string };
 
@@ -24,10 +25,12 @@ const card = (selected: boolean) =>
 export function DataPurchase({
   networks,
   balance,
+  cashback,
   defaultPhone,
 }: {
   networks: CatalogNetwork[];
   balance: number | null;
+  cashback: number;
   defaultPhone?: string;
 }) {
   const router = useRouter();
@@ -42,6 +45,7 @@ export function DataPurchase({
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [useCashback, setUseCashback] = useState(false);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -50,6 +54,8 @@ export function DataPurchase({
   const selected = plans.find((plan) => plan.id === planId) ?? null;
   const typeLabel = types.find((type) => type.id === activeType)?.label ?? "";
   const short = selected !== null && balance !== null && selected.price > balance;
+  const walletPart = selected ? Math.max(0, selected.price - (useCashback ? Math.min(cashback, selected.price) : 0)) : 0;
+  const shortWithCashback = selected !== null && balance !== null && walletPart > balance;
   const checkKey = `${phone}:${network?.id ?? ""}`;
   const skipCheck = bypassKey === checkKey;
   const mismatch = checkNetwork(phone, network?.id ?? "").status === "mismatch";
@@ -86,7 +92,7 @@ export function DataPurchase({
     if (pending || !selected) return;
     startTransition(async () => {
       try {
-        setResult(await purchaseData({ planId: selected.id, phone, reference, skipNetworkCheck: skipCheck }));
+        setResult(await purchaseData({ planId: selected.id, phone, reference, skipNetworkCheck: skipCheck, useCashback }));
       } catch (cause) {
         console.error("[data-purchase] Request failed", cause);
         setResult({
@@ -223,7 +229,8 @@ export function DataPurchase({
         {balance !== null && (
           <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">Wallet balance: {formatNaira(balance)}</p>
         )}
-        {short && (
+        {selected && <CashbackToggle balance={cashback} price={selected.price} checked={useCashback} onChange={setUseCashback} />}
+        {(useCashback ? shortWithCashback : short) && (
           <p role="alert" className="text-sm text-[#C8432B]">
             Your balance is too low for this plan.{" "}
             <Link href="/fund-wallet" className="font-semibold underline underline-offset-4">
@@ -231,7 +238,7 @@ export function DataPurchase({
             </Link>
           </p>
         )}
-        <button type="button" onClick={review} disabled={short} className={`${btnPrimary} w-full`}>
+        <button type="button" onClick={review} disabled={useCashback ? shortWithCashback : short} className={`${btnPrimary} w-full`}>
           Review purchase
         </button>
       </div>
@@ -285,7 +292,7 @@ export function DataPurchase({
                 {balance !== null && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-gray-600 dark:text-[#9FB3B7]">Balance after</dt>
-                    <dd className="tabular-nums">{formatNaira(balance - selected.price)}</dd>
+                    <dd className="tabular-nums">{formatNaira(balance - walletPart)}</dd>
                   </div>
                 )}
               </dl>

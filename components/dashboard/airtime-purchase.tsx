@@ -12,6 +12,7 @@ import { formatNaira } from "@/lib/format";
 import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseAirtime } from "@/app/dashboard/airtime/actions";
+import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 
 type Errors = { amount?: string; phone?: string };
 
@@ -25,10 +26,12 @@ const card = (selected: boolean) =>
 export function AirtimePurchase({
   networks,
   balance,
+  cashback,
   defaultPhone,
 }: {
   networks: AirtimeCatalogNetwork[];
   balance: number | null;
+  cashback: number;
   defaultPhone?: string;
 }) {
   const router = useRouter();
@@ -43,6 +46,7 @@ export function AirtimePurchase({
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [useCashback, setUseCashback] = useState(false);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -55,6 +59,8 @@ export function AirtimePurchase({
   const price = range ? airtimePrice(amountValue, range.discount) : null;
   const saving = price !== null ? amountValue - price : 0;
   const short = price !== null && balance !== null && price > balance;
+  const walletPart = price === null ? 0 : Math.max(0, price - (useCashback ? Math.min(cashback, price) : 0));
+  const shortWithCashback = price !== null && balance !== null && walletPart > balance;
   const lowest = ranges.length ? Math.min(...ranges.map((item) => item.min)) : 0;
   const highest = ranges.length ? Math.max(...ranges.map((item) => item.max)) : 0;
   const quick = QUICK_AMOUNTS.filter((value) => findRange(ranges, value));
@@ -113,6 +119,7 @@ export function AirtimePurchase({
             phone,
             reference,
             skipNetworkCheck: skipCheck,
+            useCashback,
           }),
         );
       } catch (cause) {
@@ -268,7 +275,8 @@ export function AirtimePurchase({
         {balance !== null && (
           <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">Wallet balance: {formatNaira(balance)}</p>
         )}
-        {short && (
+        {price !== null && <CashbackToggle balance={cashback} price={price} checked={useCashback} onChange={setUseCashback} />}
+        {(useCashback ? shortWithCashback : short) && (
           <p role="alert" className="text-sm text-[#C8432B]">
             Your balance is too low for this amount.{" "}
             <Link href="/fund-wallet" className="font-semibold underline underline-offset-4">
@@ -276,7 +284,7 @@ export function AirtimePurchase({
             </Link>
           </p>
         )}
-        <button type="button" onClick={review} disabled={short} className={`${btnPrimary} w-full`}>
+        <button type="button" onClick={review} disabled={useCashback ? shortWithCashback : short} className={`${btnPrimary} w-full`}>
           Review purchase
         </button>
       </div>
@@ -338,7 +346,7 @@ export function AirtimePurchase({
                 {balance !== null && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-gray-600 dark:text-[#9FB3B7]">Balance after</dt>
-                    <dd className="tabular-nums">{formatNaira(balance - price)}</dd>
+                    <dd className="tabular-nums">{formatNaira(balance - walletPart)}</dd>
                   </div>
                 )}
               </dl>

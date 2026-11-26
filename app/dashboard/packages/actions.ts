@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireSpursUser } from "@/lib/spurs";
 import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
+import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { changeCustomerPackage, getCustomerPackage, getPackage } from "@/lib/db/packages";
 import { debitWallet } from "@/lib/wallet";
 
@@ -14,6 +15,10 @@ const fail = (error: string): UpgradeResult => ({ ok: false, error });
 export async function upgradePackage(packageId: string): Promise<UpgradeResult> {
   const user = await requireSpursUser();
   if (!packageId) return fail("That change isn't valid. Refresh the page and try again.");
+
+  const customer = await getCustomerForPurchase(user.sub);
+  if (!customer) return fail("We couldn't find your account. Refresh the page and try again.");
+  if (customer.status === "suspended") return fail("Your account is suspended. Contact support to upgrade your package.");
 
   const [current, target] = await Promise.all([getCustomerPackage(user.sub), getPackage(packageId)]);
   if (!current || !target) return fail("That package no longer exists. Refresh the page.");

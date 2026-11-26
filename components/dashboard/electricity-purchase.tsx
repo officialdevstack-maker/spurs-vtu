@@ -16,6 +16,7 @@ import {
 } from "@/lib/electricity-purchase";
 import { formatNaira, formatNumber } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
+import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 
 const input =
   "h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-colors placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
@@ -25,10 +26,12 @@ const inputBad = "border-[#C8432B]";
 export function ElectricityPurchase({
   discos,
   balance,
+  cashback,
   defaultPhone,
 }: {
   discos: ElectricityDisco[];
   balance: number | null;
+  cashback: number;
   defaultPhone?: string;
 }) {
   const ids = useId();
@@ -41,6 +44,7 @@ export function ElectricityPurchase({
   const [touched, setTouched] = useState(false);
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [reference, setReference] = useState(() => crypto.randomUUID());
+  const [useCashback, setUseCashback] = useState(false);
 
   const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
   const amount = amountText === "" ? NaN : Number(amountText);
@@ -54,12 +58,14 @@ export function ElectricityPurchase({
   const price = amountError ? null : electricityPrice(amount, disco.discount);
   const saving = price === null ? null : Math.round((amount - price) * 100) / 100;
   const short = price !== null && balance !== null && balance < price;
+  const walletPart = price === null ? 0 : Math.max(0, price - (useCashback ? Math.min(cashback, price) : 0));
+  const shortWithCashback = price !== null && balance !== null && balance < walletPart;
   const hasPackageRate = disco.discount > disco.standardDiscount;
   const quickAmounts = QUICK_AMOUNTS.filter((value) => value >= disco.min && value <= disco.max);
 
   function submit() {
     setTouched(true);
-    if (pending || amountError || meterError || phoneError || short) return;
+    if (pending || amountError || meterError || phoneError || (useCashback ? shortWithCashback : short)) return;
     startTransition(async () => {
       try {
         const outcome = await purchaseElectricity({
@@ -69,6 +75,7 @@ export function ElectricityPurchase({
           amount,
           phone,
           reference,
+          useCashback,
         });
         setResult(outcome);
         setReference(crypto.randomUUID());
@@ -205,6 +212,15 @@ export function ElectricityPurchase({
           {touched && phoneError && <p role="alert" className="mt-2 text-sm text-[#C8432B]">{phoneError}</p>}
         </div>
 
+        {price !== null && (
+          <CashbackToggle
+            balance={cashback}
+            price={price}
+            checked={useCashback}
+            onChange={setUseCashback}
+          />
+        )}
+
         <button
           type="submit"
           disabled={pending}
@@ -239,6 +255,18 @@ export function ElectricityPurchase({
               <dt className="font-semibold">You pay</dt>
               <dd className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">{price === null ? "—" : formatNaira(price)}</dd>
             </div>
+            {useCashback && price !== null && (
+              <>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-600 dark:text-[#9FB3B7]">Cashback</dt>
+                  <dd className="font-medium tabular-nums">{formatNaira(Math.min(cashback, price))}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-600 dark:text-[#9FB3B7]">Wallet pays</dt>
+                  <dd className="font-medium tabular-nums">{formatNaira(walletPart)}</dd>
+                </div>
+              </>
+            )}
           </dl>
           {hasPackageRate && (
             <p className="mt-3 rounded-lg bg-[#E6F4EC] px-3 py-2 text-xs font-medium text-[#14693A] dark:bg-[#4CC38A]/15 dark:text-[#4CC38A]">
@@ -252,7 +280,7 @@ export function ElectricityPurchase({
           <p className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold tabular-nums">
             {balance === null ? "Unavailable" : formatNaira(balance)}
           </p>
-          {short && (
+          {(useCashback ? shortWithCashback : short) && (
             <p role="alert" className="mt-3 text-sm text-[#C8432B]">
               Your balance is lower than this order.{" "}
               <Link href="/fund-wallet" className="font-semibold underline underline-offset-4">Fund wallet</Link>

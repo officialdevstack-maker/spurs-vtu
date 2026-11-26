@@ -64,7 +64,7 @@ export function BalanceCards({ wallet, bonus }: { wallet: number | null; bonus: 
         <div>
           <p className="flex items-center gap-2 text-sm text-gray-600 dark:text-[#9FB3B7]">
             <Gift className="size-4 text-[#1E8E4F] dark:text-[#4CC38A]" aria-hidden="true" />
-            Bonus balance
+            Cashback balance
           </p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl font-bold tabular-nums sm:text-4xl">
             {show(bonus)}
@@ -74,7 +74,7 @@ export function BalanceCards({ wallet, bonus }: { wallet: number | null; bonus: 
           href="/dashboard/bonus"
           className="w-fit rounded text-sm font-semibold underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632]"
         >
-          See your bonus rewards
+          See your cashback
         </Link>
       </div>
     </section>

@@ -9,6 +9,7 @@ export type SettledTransaction = {
   debited: boolean;
   refunded: boolean;
   direction: "debit" | "credit";
+  cashbackUsed: number;
 };
 
 export type PendingTransactionId = { id: string; createdAt: Date };
@@ -29,11 +30,12 @@ export async function settlePending(
     debited: boolean;
     refunded: boolean;
     direction: "debit" | "credit";
+    cashback_used: string;
   }>(
     `update transactions
      set status = $2, failure_reason = $3, provider_response = $4, updated_at = now()
      where id = $1 and status = 'pending' and ($5::text is null or provider_id = $5)
-     returning id, customer_id, amount, debited, refunded, direction`,
+     returning id, customer_id, amount, debited, refunded, direction, cashback_used`,
     [id, status, details.reason ?? null, details.response?.slice(0, 2000) ?? null, details.providerId ?? null],
   );
   const row = rows[0];
@@ -45,6 +47,7 @@ export async function settlePending(
         debited: row.debited,
         refunded: row.refunded,
         direction: row.direction,
+        cashbackUsed: Number(row.cashback_used),
       }
     : null;
 }

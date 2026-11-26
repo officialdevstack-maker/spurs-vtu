@@ -7,7 +7,8 @@ import {
   type SettledTransaction,
 } from "@/lib/db/settlement";
 import { markRefunded } from "@/lib/db/transactions";
-import { creditWallet } from "@/lib/wallet";
+import { refundPurchase } from "@/lib/payment";
+import { awardCashback } from "@/lib/cashback";
 import type { WebhookResult } from "@/lib/admin/webhooks";
 
 type RefundState = "refunded" | "needed" | "none";
@@ -16,7 +17,7 @@ type RefundState = "refunded" | "needed" | "none";
 async function refundIfNeeded(tx: SettledTransaction): Promise<RefundState> {
   if (tx.direction !== "debit" || !tx.debited || tx.refunded) return "none";
   try {
-    if (await creditWallet(tx.customerId, tx.amount, `${tx.id}:refund`)) {
+    if (await refundPurchase(tx.customerId, tx.amount, tx.cashbackUsed, tx.id)) {
       await markRefunded(tx.id);
       return "refunded";
     }
@@ -44,6 +45,7 @@ export async function settleFromWebhook(input: {
 
   if (settled) {
     if (outcome === "failed") await refundIfNeeded(settled);
+    if (outcome === "success") await awardCashback(reference);
     return "applied";
   }
 
