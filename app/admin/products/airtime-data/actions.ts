@@ -50,7 +50,7 @@ export async function savePlanFallbacks(
   planId: string,
   input: { providerId: string; providerPlanId: string; cost: number }[],
 ): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if ((service !== "data" && service !== "cable") || !planId || !Array.isArray(input) || input.length > 10) return BAD_INPUT;
   const seen = new Set<string>();
   const codes: { providerId: string; providerPlanId: string; cost: number }[] = [];
@@ -73,6 +73,12 @@ export async function savePlanFallbacks(
     return true;
   }, {
     fk: "That provider no longer exists. Refresh the page.",
+    log: () => recordAudit(admin, {
+      action: "plan.fallbacks.save",
+      target: planId,
+      summary: `Saved ${codes.length} fallback provider(s) for a ${service} plan`,
+      meta: { service, providers: codes.map((code) => code.providerId) },
+    }),
   });
 }
 

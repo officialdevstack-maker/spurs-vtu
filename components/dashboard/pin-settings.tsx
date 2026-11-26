@@ -10,7 +10,8 @@ import type { PinResult } from "@/lib/pin";
 
 const card = "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5";
 const muted = "text-gray-600 dark:text-[#9FB3B7]";
-const btn = "h-10 rounded-xl border border-gray-300 px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:opacity-60 dark:border-white/15 dark:focus-visible:ring-[#F2B632]";
+const btn = "h-10 rounded-xl border border-gray-300 px-4 text-sm font-medium text-[#12343B] outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:opacity-60 dark:border-white/15 dark:text-[#F2B632] dark:focus-visible:ring-[#F2B632]";
+const primaryBtn = "h-10 rounded-xl bg-[#F2B632] px-4 text-sm font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]";
 
 export function PinSettings({ hasPin }: { hasPin: boolean }) {
   const router = useRouter();
@@ -44,16 +45,16 @@ export function PinSettings({ hasPin }: { hasPin: boolean }) {
       {!hasPin ? (
         <>
           <p className={`mt-1 text-sm ${muted}`}>PIN is off. Purchases go through without asking for one.</p>
-          <Link href="/pin/setup" className={`${btn} mt-4 inline-flex items-center`}>Turn on PIN</Link>
+          <Link href="/pin/setup" className={`${primaryBtn} mt-4 inline-flex items-center`}>Turn on PIN</Link>
         </>
       ) : (
         <>
           <p className={`mt-1 text-sm ${muted}`}>You enter this 4-digit PIN to confirm purchases and package upgrades.</p>
           {mode === "idle" && (
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" className={btn} onClick={() => setMode("change")}>Change PIN</button>
-              <button type="button" className={btn} onClick={() => setMode("remove")}>Turn off PIN</button>
-              <button type="button" className={btn} disabled={pending} onClick={() => run(requestPinReset, "Check your email for the reset link")}>
+              <button type="button" className={primaryBtn} onClick={() => setMode("change")}>Change PIN</button>
+              <button type="button" className={primaryBtn} onClick={() => setMode("remove")}>Turn off PIN</button>
+              <button type="button" className={primaryBtn} disabled={pending} onClick={() => run(requestPinReset, "Check your email for the reset link")}>
                 Forgot PIN? Email me a link
               </button>
             </div>
@@ -65,7 +66,7 @@ export function PinSettings({ hasPin }: { hasPin: boolean }) {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className={btn}
+                  className={primaryBtn}
                   disabled={pending || current.length !== 4 || (mode === "change" && next.length !== 4)}
                   onClick={() => mode === "change"
                     ? run(() => changePinAction(current, next), "PIN changed")

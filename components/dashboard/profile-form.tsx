@@ -10,6 +10,8 @@ const card = "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/
 const input =
   "h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:opacity-60 dark:border-white/15 dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
 const muted = "text-gray-600 dark:text-[#9FB3B7]";
+const profilePrimary =
+  "h-11 rounded-xl bg-[#F2B632] px-6 text-sm font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -149,7 +151,7 @@ export function ProfileForm(props: {
               onClick={() => pickTheme(theme)}
               className={`h-10 rounded-xl border px-4 text-sm font-medium capitalize outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${
                 s.theme === theme
-                  ? "border-[#12343B] bg-[#12343B] text-white dark:border-[#F2B632] dark:bg-[#F2B632] dark:text-[#12343B]"
+                  ? "border-[#F2B632] bg-[#F2B632] text-[#12343B] hover:bg-[#E5A720]"
                   : "border-gray-300 dark:border-white/15"
               }`}
             >
@@ -163,7 +165,7 @@ export function ProfileForm(props: {
         type="button"
         onClick={save}
         disabled={pending}
-        className="h-11 rounded-xl bg-[#12343B] px-6 text-sm font-semibold text-white outline-none hover:bg-[#0C2429] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 disabled:opacity-60 dark:bg-[#F2B632] dark:text-[#12343B] dark:hover:bg-[#E5A720] dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
+        className={profilePrimary}
       >
         {pending ? "Saving..." : "Save changes"}
       </button>
