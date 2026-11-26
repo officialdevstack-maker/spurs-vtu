@@ -2,8 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Menu } from "lucide-react";
-import { Sidebar, Wordmark, type SidebarUser } from "./sidebar";
+import { AccountBarView } from "@/components/dashboard/account-bar-view";
+import { Sidebar, type SidebarUser } from "./sidebar";
 import type { NavGroup } from "@/lib/nav";
 
 const COLLAPSED_KEY = "spur-sidebar-collapsed";
@@ -116,20 +116,17 @@ export function DashboardShell({
       />
 
       <div ref={contentRef} className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-200 bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-[#0B1B1F]/90 lg:hidden">
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={open}
-            className="grid size-10 place-items-center rounded-lg outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:hover:bg-white/10 dark:focus-visible:ring-[#F2B632]"
-          >
-            <Menu className="size-6" />
-          </button>
-          <Wordmark suffix={brandSuffix} />
-        </header>
-
+        <AccountBarView
+          name={user.name}
+          username={user.username ?? null}
+          email={user.email ?? ""}
+          picture={user.picture ?? null}
+          unread={unreadCount ?? 0}
+          menuButtonRef={menuButtonRef}
+          menuOpen={open}
+          onOpenMenu={() => setOpen(true)}
+          brandSuffix={brandSuffix}
+        />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>

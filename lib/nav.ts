@@ -1,5 +1,4 @@
 import {
-  Bell,
   Gift,
   LayoutDashboard,
   Package,
@@ -7,7 +6,6 @@ import {
   Smartphone,
   Tv,
   Wallet,
-  User,
   Wifi,
   Zap,
   Users,
@@ -35,9 +33,7 @@ export const NAV: NavGroup[] = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
-      { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
       { label: "Support", href: "/dashboard/support", icon: LifeBuoy },
-      { label: "Profile", href: "/dashboard/profile", icon: User },
     ],
   },
   {
