@@ -7,7 +7,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ refe
   const auth = await authenticateApi(request, "transactions");
   if (!auth.ok) return auth.response;
   const { reference } = await params;
-  if (!REFERENCE.test(reference)) return apiError("invalid_request", "That reference isn't valid.", 400);
+  if (!REFERENCE.test(reference) && !/^flw-\d+$/.test(reference)) {
+    return apiError("invalid_request", "That reference isn't valid.", 400);
+  }
   try {
     const tx = await findTransaction(reference, auth.ctx.customerId);
     if (!tx) return apiError("not_found", "No order with that reference.", 404);

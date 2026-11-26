@@ -10,7 +10,9 @@ try {
     "create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())",
   );
   const done = new Set((await pool.query("select name from schema_migrations")).rows.map((r) => r.name));
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
+  const files = (await readdir(dir))
+    .filter((f) => f.endsWith(".sql") && f !== "002_seed_airtime_data.sql")
+    .sort();
 
   for (const file of files) {
     if (done.has(file)) continue;

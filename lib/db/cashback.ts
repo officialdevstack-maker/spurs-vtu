@@ -14,12 +14,10 @@ const toRule = (r: RuleRow): CashbackRule => ({
 });
 
 export async function getCashbackBalanceKobo(customerId: string): Promise<bigint> {
-  await getPool().query(
-    "insert into cashback_wallets (customer_id) values ($1) on conflict (customer_id) do nothing",
-    [customerId],
-  );
   const { rows } = await getPool().query<{ balance_kobo: string }>(
-    "select balance_kobo::text from cashback_wallets where customer_id = $1",
+    `select coalesce(w.balance_kobo, 0)::text as balance_kobo
+     from customers c left join cashback_wallets w on w.customer_id = c.id
+     where c.id = $1`,
     [customerId],
   );
   return BigInt(rows[0]?.balance_kobo ?? "0");

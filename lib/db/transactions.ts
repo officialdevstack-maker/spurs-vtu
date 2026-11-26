@@ -38,6 +38,7 @@ export type HistoryItem = Transaction & {
   failureReason: string | null;
   debited: boolean;
   refunded: boolean;
+  cashbackUsed: number;
   admin?: AdminDetail;
 };
 
@@ -53,6 +54,7 @@ type HistoryRow = {
   failure_reason: string | null;
   debited: boolean;
   refunded: boolean;
+  cashback_used: string;
   cost: string | null;
   customer_id: string;
   username: string | null;
@@ -167,7 +169,7 @@ async function queryHistory(filters: HistoryFilters, customerId: string | null) 
 
   const { rows } = await pool.query<HistoryRow>(
     `select t.id, t.service, t.title, t.detail, t.amount, t.direction, t.status, t.created_at,
-            t.failure_reason, t.debited, t.refunded, t.cost, t.customer_id,
+            t.failure_reason, t.debited, t.refunded, t.cashback_used, t.cost, t.customer_id,
             c.username, c.name as customer_name, p.name as provider_name
      ${from}
      order by t.created_at desc, t.id
@@ -190,6 +192,7 @@ function toHistoryItem(row: HistoryRow, admin: boolean): HistoryItem {
     failureReason: row.failure_reason,
     debited: row.debited,
     refunded: row.refunded,
+    cashbackUsed: Number(row.cashback_used),
     ...(admin
       ? {
           admin: {

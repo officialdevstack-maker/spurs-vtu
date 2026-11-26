@@ -98,7 +98,7 @@ export async function getAutoFailMinutes(): Promise<number> {
     AUTO_FAIL_KEY,
   ]);
   const value = rows[0]?.value;
-  if (value === undefined) return 0;
+  if (value === undefined) return 45;
   const minutes = Number(value);
   if (
     !Number.isInteger(minutes) ||

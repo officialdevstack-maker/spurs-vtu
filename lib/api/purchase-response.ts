@@ -17,6 +17,7 @@ export function purchaseOptions(ctx: ApiContext, body: Record<string, unknown>) 
       pin: body.pin,
       useCashback: body.useCashback === true,
       promoCode: typeof body.promoCode === "string" ? body.promoCode : undefined,
+      skipNetworkCheck: body.skipNetworkCheck === true,
     },
   };
 }

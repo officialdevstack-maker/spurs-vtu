@@ -3,6 +3,7 @@ import { getProviderByToken, logWebhookEvent } from "@/lib/db/webhooks";
 import { openReconciliation } from "@/lib/db/reconciliation";
 import { settleFromWebhook } from "@/lib/settlement";
 import { interpretProviderResponse } from "@/lib/providers/result";
+import { requeryOrder } from "@/lib/reconcile";
 
 const MAX_BODY = 20_000;
 const REFERENCE_KEYS = [
@@ -108,15 +109,21 @@ async function handle(request: NextRequest, { params }: { params: Promise<{ toke
 
     const payload = parsed.payload;
     const reference = findReference(payload);
-    const outcome = interpretProviderResponse({ ok: true, status: 200, data: payload });
+    const callbackOutcome = interpretProviderResponse({ ok: true, status: 200, data: payload });
     const raw = JSON.stringify(payload);
 
     if (!reference) {
-      await logWebhookEvent({ providerId: provider.id, reference: null, outcome, result: "ignored", payload: raw });
+      await logWebhookEvent({ providerId: provider.id, reference: null, outcome: callbackOutcome, result: "ignored", payload: raw });
       return json({ received: true, applied: false, reason: "No reference found in the payload." });
     }
 
-    const result = await settleFromWebhook({ providerId: provider.id, reference, outcome, response: raw });
+    const requery = await requeryOrder(provider.id, reference);
+    if (requery.outcome === "unknown" || requery.outcome === "pending") {
+      await logWebhookEvent({ providerId: provider.id, reference, outcome: "pending", result: "ignored", payload: raw });
+      return json({ received: true, applied: false, reason: "Provider status could not be confirmed." });
+    }
+    const outcome = requery.outcome;
+    const result = await settleFromWebhook({ providerId: provider.id, reference, outcome, response: requery.response });
     await logWebhookEvent({ providerId: provider.id, reference, outcome, result, payload: raw });
     if (result === "late_success") {
       await openReconciliation(reference, "late_success", provider.id);
@@ -128,5 +135,6 @@ async function handle(request: NextRequest, { params }: { params: Promise<{ toke
   }
 }
 
-export const POST = handle;
-export const GET = handle;
+export async function POST(request: NextRequest, context: { params: Promise<{ token: string }> }) {
+  return handle(request, context);
+}

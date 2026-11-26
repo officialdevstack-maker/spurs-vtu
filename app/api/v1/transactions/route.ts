@@ -13,7 +13,8 @@ export async function GET(request: Request) {
       page, pageSize: HISTORY_PAGE_SIZE, total,
       items: items.map((item) => ({
         reference: item.id, service: item.service, title: item.title, amount: item.amount,
-        direction: item.direction, status: item.status, at: item.at,
+        detail: item.detail, direction: item.direction, status: item.status, at: item.at,
+        failureReason: item.failureReason, refunded: item.refunded, cashbackUsed: item.cashbackUsed,
       })),
     });
   } catch (error) {

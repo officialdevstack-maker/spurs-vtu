@@ -17,11 +17,10 @@ function assertAmount(amountKobo: number): void {
 
 export async function getWalletBalanceKobo(customerId: string): Promise<bigint> {
   const pool = getPool();
-  await pool.query("insert into vtu_wallets (customer_id) values ($1) on conflict (customer_id) do nothing", [
-    customerId,
-  ]);
   const { rows } = await pool.query<{ balance_kobo: string }>(
-    "select balance_kobo::text from vtu_wallets where customer_id = $1",
+    `select coalesce(w.balance_kobo, 0)::text as balance_kobo
+     from customers c left join vtu_wallets w on w.customer_id = c.id
+     where c.id = $1`,
     [customerId],
   );
   const balance = rows[0];
@@ -391,6 +390,10 @@ export async function applyFlutterwavePayment(input: {
     if (!customerId) {
       await client.query("rollback");
       return "not_found";
+    }
+    if (intent.rows[0] && BigInt(intent.rows[0].amount_kobo) !== BigInt(input.amountKobo)) {
+      await client.query("rollback");
+      throw new Error("Flutterwave temporary funding amount does not match the intent.");
     }
     await client.query(
       `insert into vtu_wallets (customer_id) values ($1)

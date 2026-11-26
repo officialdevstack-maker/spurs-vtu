@@ -17,7 +17,9 @@ export type ApiContext = {
 export const hashApiKey = (key: string) => createHash("sha256").update(key).digest("hex");
 
 function clientIp(request: Request): string | null {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip");
+  return request.headers.get("x-real-ip")?.trim() ||
+    request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
+    null;
 }
 
 export async function authenticateApi(

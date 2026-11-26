@@ -91,10 +91,8 @@ async function execute(request: Prepared): Promise<ProviderResponse> {
 
   const shown = new URL(request.url);
   if (request.secretParam) shown.searchParams.delete(request.secretParam);
-  console.log(
-    request.body
-      ? `[provider-call] ${request.method} ${shown} with body: ${request.body}`
-      : `[provider-call] ${request.method} ${shown}`,
+  console.info(
+    `[provider-call] ${request.method} ${shown.pathname}${shown.search ? " (query redacted)" : ""}`,
   );
 
   const text = await response.text();
