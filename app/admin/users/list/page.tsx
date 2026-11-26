@@ -114,7 +114,7 @@ export default async function CustomersPage({
                   <tr key={customer.id}>
                     <td className="px-5 py-4">
                       <Link
-                        href={`/admin/users/list/${encodeURIComponent(customer.id)}`}
+                        href={`/admin/users/${encodeURIComponent(customer.id)}`}
                         className="font-medium underline-offset-4 hover:underline"
                       >
                         {customer.name || customer.username || "Unnamed customer"}
