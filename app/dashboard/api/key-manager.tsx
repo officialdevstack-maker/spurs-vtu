@@ -9,11 +9,12 @@ import { createKey, revokeKey } from "./actions";
 
 const input = "h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:border-white/15 dark:bg-[#10262B]";
 
-export function KeyManager({ keys }: { keys: ApiKeyRecord[] }) {
+export function KeyManager({ keys, pinRequired }: { keys: ApiKeyRecord[]; pinRequired: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<ApiScope[]>(["balance", "catalog", "purchase", "transactions"]);
   const [ips, setIps] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -22,11 +23,12 @@ export function KeyManager({ keys }: { keys: ApiKeyRecord[] }) {
     setError("");
     startTransition(async () => {
       try {
-        const result = await createKey({ name, scopes, ipAllowlist: ips });
+        const result = await createKey({ name, scopes, ipAllowlist: ips, pin });
         if (!result.ok) return setError(result.error);
         setSecret(result.key);
         setName("");
         setIps("");
+        setPin("");
         router.refresh();
       } catch {
         setError("Could not create the key. Please try again.");
@@ -84,6 +86,20 @@ export function KeyManager({ keys }: { keys: ApiKeyRecord[] }) {
             <span className="mb-1 block text-sm font-medium">Allowed IP addresses</span>
             <input className={input} value={ips} placeholder="Optional. Separate with commas." onChange={(e) => setIps(e.target.value)} />
           </label>
+          {pinRequired && (
+            <label className="block max-w-[10rem]">
+              <span className="mb-1 block text-sm font-medium">Transaction PIN</span>
+              <input
+                className={input}
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={4}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              />
+            </label>
+          )}
           {error && <p role="alert" className="text-sm text-[#C8432B]">{error}</p>}
           <button type="button" disabled={pending} onClick={create} className="h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] hover:bg-[#E5A720] disabled:opacity-60">
             {pending ? "Working..." : "Create key"}

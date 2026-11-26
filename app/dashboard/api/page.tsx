@@ -4,6 +4,7 @@ import { API_PACKAGE_ID, RATE_LIMIT } from "@/lib/api/keys";
 import { listApiKeys } from "@/lib/db/api-keys";
 import { getApiWebhook, listRecentDeliveries } from "@/lib/db/api-webhooks";
 import { getCustomerPackage } from "@/lib/db/packages";
+import { getPinState } from "@/lib/db/pin";
 import { requireSpursUser } from "@/lib/spurs";
 import { KeyManager } from "./key-manager";
 import { WebhookManager } from "./webhook-manager";
@@ -16,9 +17,14 @@ export default async function ApiPage() {
   const user = await requireSpursUser();
   const pkg = await getCustomerPackage(user.sub);
   const eligible = pkg?.id === API_PACKAGE_ID;
-  const [keys, webhook, deliveries] = eligible
-    ? await Promise.all([listApiKeys(user.sub), getApiWebhook(user.sub), listRecentDeliveries(user.sub)])
-    : [[], null, []];
+  const [keys, webhook, deliveries, pinState] = eligible
+    ? await Promise.all([
+        listApiKeys(user.sub),
+        getApiWebhook(user.sub),
+        listRecentDeliveries(user.sub),
+        getPinState(user.sub),
+      ])
+    : [[], null, [], { hasPin: false, required: false }];
   const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -33,7 +39,7 @@ export default async function ApiPage() {
         </div>
       ) : (
         <>
-          <KeyManager keys={keys} />
+          <KeyManager keys={keys} pinRequired={pinState.required} />
           <WebhookManager webhook={webhook} deliveries={deliveries} />
           <section className="rounded-2xl border border-gray-200 bg-white p-6 text-sm dark:border-white/10 dark:bg-white/5">
             <h2 className="font-semibold">Quick start</h2>

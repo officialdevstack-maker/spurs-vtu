@@ -8,6 +8,7 @@ import { API_PACKAGE_ID, API_PATH, MAX_ACTIVE_KEYS, isApiScope, type ApiScope } 
 import { recordAudit } from "@/lib/db/audit";
 import * as db from "@/lib/db/api-keys";
 import { getCustomerPackage } from "@/lib/db/packages";
+import { verifyPin } from "@/lib/db/pin";
 import { requireSpursUser } from "@/lib/spurs";
 
 export type CreateKeyResult = { ok: true; key: string } | { ok: false; error: string };
@@ -31,6 +32,8 @@ export async function createKey(input: unknown): Promise<CreateKeyResult> {
     if (pkg?.id !== API_PACKAGE_ID) {
       return { ok: false, error: "API keys are available on the API package. Upgrade your package first." };
     }
+    const pin = await verifyPin(user.sub, raw.pin);
+    if (!pin.ok) return { ok: false, error: pin.error };
     const key = `vtu_live_${randomBytes(32).toString("base64url")}`;
     const id = randomUUID();
     const created = await db.createApiKey({
