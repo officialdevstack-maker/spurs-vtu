@@ -8,6 +8,7 @@ import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
 import { getProfileSettings } from "@/lib/db/profile";
+import { getPinState } from "@/lib/db/pin";
 
 export const metadata: Metadata = { title: "Buy airtime | Spur VTU" };
 export const instant = false;
@@ -15,12 +16,13 @@ export const instant = false;
 export default async function BuyAirtimePage() {
   await connection();
   const user = await requireSpursUser();
-  const [customer, networks, balance, cashback, settings] = await Promise.all([
+  const [customer, networks, balance, cashback, settings, pinState] = await Promise.all([
     getCustomerForPurchase(user.sub),
     getAirtimeCatalog(),
     getNairaBalance(user.sub),
     getCashbackBalance(user.sub),
     getProfileSettings(user.sub),
+    getPinState(user.sub),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function BuyAirtimePage() {
           defaultPhone={customer?.phone ?? undefined}
           defaultUseCashback={settings.useCashbackDefault}
           confirmPurchases={settings.confirmPurchases}
+          pinRequired={pinState.hasPin}
         />
       )}
     </div>

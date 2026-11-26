@@ -6,6 +6,7 @@ import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type PackagePrice,
 import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
 import { recordAudit } from "@/lib/db/audit";
+import { savePlanProviderCodes } from "@/lib/db/failover";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -42,6 +43,37 @@ async function run(
   } catch (error) {
     return dbError(error, options.fk ?? "That is still in use, so it can't be changed.");
   }
+}
+
+export async function savePlanFallbacks(
+  service: "data" | "cable",
+  planId: string,
+  input: { providerId: string; providerPlanId: string; cost: number }[],
+): Promise<ActionResult> {
+  await requirePermission("products.manage");
+  if ((service !== "data" && service !== "cable") || !planId || !Array.isArray(input) || input.length > 10) return BAD_INPUT;
+  const seen = new Set<string>();
+  const codes: { providerId: string; providerPlanId: string; cost: number }[] = [];
+  for (const code of input) {
+    const providerPlanId = clean(code?.providerPlanId);
+    if (
+      !code ||
+      typeof code.providerId !== "string" ||
+      !code.providerId ||
+      seen.has(code.providerId) ||
+      !providerPlanId ||
+      providerPlanId.length > 100
+    ) return BAD_INPUT;
+    if (typeof code.cost !== "number" || !Number.isFinite(code.cost) || code.cost < 0 || code.cost > 10_000_000) return BAD_INPUT;
+    seen.add(code.providerId);
+    codes.push({ providerId: code.providerId, providerPlanId, cost: round2(code.cost) });
+  }
+  return run(async () => {
+    await savePlanProviderCodes(service, planId, codes);
+    return true;
+  }, {
+    fk: "That provider no longer exists. Refresh the page.",
+  });
 }
 
 export async function createNetwork(name: string): Promise<ActionResult> {

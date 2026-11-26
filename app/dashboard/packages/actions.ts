@@ -7,6 +7,7 @@ import { CUSTOMER_PACKAGES_PATH } from "@/lib/admin/packages";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { changeCustomerPackage, getCustomerPackage, getPackage } from "@/lib/db/packages";
 import { creditWallet, debitWallet } from "@/lib/wallet";
+import { verifyPin } from "@/lib/db/pin";
 
 export type UpgradeResult = { ok: true } | { ok: false; error: string };
 
@@ -21,9 +22,12 @@ async function refundUpgradeFee(customerId: string, fee: number, reference: stri
   }
 }
 
-export async function upgradePackage(packageId: string): Promise<UpgradeResult> {
+export async function upgradePackage(packageId: string, pin: unknown): Promise<UpgradeResult> {
   const user = await requireSpursUser();
   if (!packageId) return fail("That change isn't valid. Refresh the page and try again.");
+
+  const checked = await verifyPin(user.sub, pin);
+  if (!checked.ok) return fail(checked.error);
 
   const customer = await getCustomerForPurchase(user.sub);
   if (!customer) return fail("We couldn't find your account. Refresh the page and try again.");

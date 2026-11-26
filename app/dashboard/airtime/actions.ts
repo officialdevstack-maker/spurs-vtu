@@ -7,6 +7,7 @@ import type { PurchaseResult } from "@/lib/data-purchase";
 import { formatNumber } from "@/lib/format";
 import { networkMismatchMessage } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
+import { airtimeAlternates } from "@/lib/db/failover";
 import {
   BAD_PHONE,
   executePurchase,
@@ -24,7 +25,7 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { networkId, typeId, amount, phone, reference, skipNetworkCheck, useCashback } = input as Record<string, unknown>;
+  const { networkId, typeId, amount, phone, reference, skipNetworkCheck, useCashback, pin } = input as Record<string, unknown>;
   if (
     typeof networkId !== "string" ||
     !networkId ||
@@ -41,7 +42,7 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
   }
   if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) return purchaseFail(BAD_PHONE);
 
-  const opened = await openPurchase("airtime", user.sub, reference);
+  const opened = await openPurchase("airtime", user.sub, reference, pin);
   if ("result" in opened) return opened.result;
 
   const quote = await getAirtimeQuote(networkId, typeId, amount);
@@ -58,6 +59,8 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
   if (!providerId) return purchaseFail("Airtime can't be bought right now. Please try again later.");
 
   const recipient = groupPhone(phone);
+  const providerVars = { phone, amount, network: networkId, type: quote.typeLabel, reference };
+  const alternates = await airtimeAlternates(providerId, providerVars);
   return executePurchase({
     service: "airtime",
     reference,
@@ -73,6 +76,7 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
     phone,
     recipient,
     providerService: "airtime",
-    providerVars: { phone, amount, network: networkId, type: quote.typeLabel, reference },
+    providerVars,
+    alternates,
   });
 }

@@ -6,12 +6,15 @@ import { toast } from "sonner";
 import { FormError, Modal, btnGhost, btnPrimary } from "@/components/admin/modal";
 import { formatNaira } from "@/lib/format";
 import { upgradePackage } from "@/app/dashboard/packages/actions";
+import { PinDialog } from "@/components/dashboard/pin-dialog";
 
-export function UpgradeButton({ packageId, name, fee }: { packageId: string; name: string; fee: number }) {
+export function UpgradeButton({ packageId, name, fee, pinRequired }: { packageId: string; name: string; fee: number; pinRequired: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   function close() {
     if (pending) return;
@@ -21,16 +24,27 @@ export function UpgradeButton({ packageId, name, fee }: { packageId: string; nam
 
   function confirm() {
     if (pending) return;
+    if (pinRequired) {
+      setPinError(null);
+      setPinOpen(true);
+      return;
+    }
+    runUpgrade();
+  }
+
+  function runUpgrade(pin?: string) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await upgradePackage(packageId);
+        const result = await upgradePackage(packageId, pin);
         if (result.ok) {
           toast.success(`You're now on ${name}`);
           setOpen(false);
+          setPinOpen(false);
           router.refresh();
         } else {
-          setError(result.error);
+          if (pinRequired && pinOpen) setPinError(result.error);
+          else setError(result.error);
         }
       } catch (cause) {
         console.error("[packages] Failed to upgrade", cause);
@@ -67,6 +81,13 @@ export function UpgradeButton({ packageId, name, fee }: { packageId: string; nam
           </div>
         </Modal>
       )}
+      <PinDialog
+        open={pinOpen}
+        pending={pending}
+        error={pinError}
+        onSubmit={(pin) => runUpgrade(pin)}
+        onCancel={() => setPinOpen(false)}
+      />
     </>
   );
 }

@@ -6,6 +6,7 @@ import { getPurchasablePlan, pickDataProvider } from "@/lib/db/data-purchase";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { networkMismatchMessage } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
+import { planAlternates } from "@/lib/db/failover";
 import {
   BAD_PHONE,
   executePurchase,
@@ -21,13 +22,13 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { planId, phone, reference, skipNetworkCheck, useCashback } = input as Record<string, unknown>;
+  const { planId, phone, reference, skipNetworkCheck, useCashback, pin } = input as Record<string, unknown>;
   if (typeof planId !== "string" || !planId || typeof reference !== "string" || !REFERENCE.test(reference)) {
     return purchaseFail(INVALID_PURCHASE);
   }
   if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) return purchaseFail(BAD_PHONE);
 
-  const opened = await openPurchase("data", user.sub, reference);
+  const opened = await openPurchase("data", user.sub, reference, pin);
   if ("result" in opened) return opened.result;
 
   const plan = await getPurchasablePlan(planId);
@@ -43,6 +44,8 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   if (!providerId) return purchaseFail("This plan can't be bought right now. Please try again later.");
 
   const recipient = groupPhone(phone);
+  const providerVars = { phone, amount: plan.cost, network: plan.networkId, plan: plan.providerPlanId, reference };
+  const alternates = await planAlternates("data", plan.id, providerId, providerVars);
   return executePurchase({
     service: "data",
     reference,
@@ -58,6 +61,7 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
     phone,
     recipient,
     providerService: "data",
-    providerVars: { phone, amount: plan.cost, network: plan.networkId, plan: plan.providerPlanId, reference },
+    providerVars,
+    alternates,
   });
 }

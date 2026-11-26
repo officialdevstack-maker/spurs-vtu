@@ -26,6 +26,8 @@ async function sendEmail(to: string, subject: string, text: string): Promise<voi
   if (!response.ok) throw new Error(`Email provider returned ${response.status}`);
 }
 
+export { sendEmail };
+
 async function sendSms(phone: string, text: string): Promise<void> {
   const response = await fetch("https://api.ng.termii.com/api/sms/send", {
     method: "POST",

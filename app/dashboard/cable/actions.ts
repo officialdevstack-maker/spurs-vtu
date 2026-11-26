@@ -6,6 +6,7 @@ import { SMARTCARD_PATTERN } from "@/lib/cable-purchase";
 import { lookupSmartcard } from "@/lib/cable-lookup";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { PHONE_PATTERN } from "@/lib/phone";
+import { planAlternates } from "@/lib/db/failover";
 import {
   BAD_PHONE,
   executePurchase,
@@ -41,7 +42,7 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { planId, smartcard, phone, reference, useCashback } = input as Record<string, unknown>;
+  const { planId, smartcard, phone, reference, useCashback, pin } = input as Record<string, unknown>;
   if (typeof planId !== "string" || !planId || typeof reference !== "string" || !REFERENCE.test(reference)) {
     return purchaseFail(INVALID_PURCHASE);
   }
@@ -50,7 +51,7 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
   }
   if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) return purchaseFail(BAD_PHONE);
 
-  const opened = await openPurchase("cable", user.sub, reference);
+  const opened = await openPurchase("cable", user.sub, reference, pin);
   if ("result" in opened) return opened.result;
 
   const plan = await getPurchasableCablePlan(planId);
@@ -70,6 +71,15 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
     ? plan.name
     : `${plan.operatorName} ${plan.name}`;
 
+  const providerVars = {
+    smartcard,
+    operator: plan.operatorId,
+    plan: plan.providerPlanId,
+    amount: plan.cost,
+    phone,
+    reference,
+  };
+  const alternates = await planAlternates("cable", plan.id, providerId, providerVars);
   return executePurchase({
     service: "cable",
     reference,
@@ -85,13 +95,7 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
     phone,
     recipient: smartcard,
     providerService: "cable",
-    providerVars: {
-      smartcard,
-      operator: plan.operatorId,
-      plan: plan.providerPlanId,
-      amount: plan.cost,
-      phone,
-      reference,
-    },
+    providerVars,
+    alternates,
   });
 }

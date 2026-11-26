@@ -1,11 +1,13 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { firstName, type PurchaseService } from "@/lib/admin/purchase-templates";
 import type { ProviderService } from "@/lib/admin/providers";
 import type { PurchaseResult } from "@/lib/data-purchase";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { findTransaction, finishTransaction, markDebited, startTransaction } from "@/lib/db/transactions";
 import { formatNaira } from "@/lib/format";
+import { notify } from "@/lib/notify";
 import { quoteCharge, refundAndMark, takePayment } from "@/lib/payment";
 import { logProviderFailure } from "@/lib/purchase/diagnostics";
 import { NotSentError, callProviderEndpoint, type ProviderResponse } from "@/lib/providers/call";
@@ -14,6 +16,8 @@ import { interpretProviderResponse, type Outcome } from "@/lib/providers/result"
 import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
 import { onPurchaseSuccess } from "@/lib/rewards";
 import { getNairaBalance } from "@/lib/wallet";
+import { verifyPin } from "@/lib/db/pin";
+import { recordAttempt, switchProvider, type Route } from "@/lib/db/failover";
 
 export const REFERENCE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const INVALID_PURCHASE = "That purchase isn't valid. Refresh the page and try again.";
@@ -55,6 +59,7 @@ export async function openPurchase(
   service: PurchaseService,
   customerId: string,
   reference: string,
+  pin: unknown,
 ): Promise<{ result: PurchaseResult } | { customer: PurchaseCustomer }> {
   const existing = await findTransaction(reference, customerId);
   if (existing) {
@@ -65,6 +70,9 @@ export async function openPurchase(
     if (existing.status === "pending") return { result: { ok: true, status: "pending", message: copy.pending } };
     return { result: purchaseFail(existing.failureReason ?? "That purchase failed.") };
   }
+
+  const checked = await verifyPin(customerId, pin);
+  if (!checked.ok) return { result: { ok: false, error: checked.error, pin: true } };
 
   const customer = await getCustomerForPurchase(customerId);
   if (!customer) return { result: purchaseFail("We couldn't find your account. Refresh the page and try again.") };
@@ -90,6 +98,7 @@ export type PurchaseSpec = {
   recipient: string;
   providerService: ProviderService;
   providerVars: Vars;
+  alternates?: Route[];
   inspect?: (result: ProviderResponse) => Record<string, string> | void;
 };
 
@@ -156,27 +165,68 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
   let outcome: Outcome = "pending";
   let response: string | undefined;
   let extra: Record<string, string> = {};
-  try {
-    const result = await callProviderEndpoint(spec.providerId, spec.providerService, spec.providerVars);
-    outcome = interpretProviderResponse(result);
-    response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+  const routes: Route[] = [
+    { providerId: spec.providerId, vars: spec.providerVars, cost: spec.cost },
+    ...(spec.alternates ?? []),
+  ];
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i];
+    if (i > 0) {
+      try {
+        await switchProvider(reference, route.providerId, route.cost);
+      } catch (error) {
+        console.error(`${tag} Could not switch provider, stopping failover`, reference, error);
+        break;
+      }
+    }
+
+    let attempt: "success" | "failed" | "pending" | "not_sent";
+    let httpStatus: number | null = null;
     try {
-      extra = spec.inspect?.(result) ?? {};
+      const result = await callProviderEndpoint(route.providerId, spec.providerService, route.vars);
+      httpStatus = result.status;
+      outcome = interpretProviderResponse(result);
+      attempt = outcome;
+      response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+      try {
+        extra = spec.inspect?.(result) ?? {};
+      } catch (error) {
+        console.error(`${tag} Could not read the provider reply`, reference, error);
+      }
+      if (outcome !== "success") {
+        logProviderFailure(tag, reference, route.providerId, result, outcome, [spec.phone, spec.recipient]);
+      }
     } catch (error) {
-      console.error(`${tag} Could not read the provider reply`, reference, error);
+      response = error instanceof Error ? error.message : "Provider call failed";
+      const notSent = error instanceof NotSentError;
+      outcome = notSent ? "failed" : "pending";
+      attempt = notSent ? "not_sent" : "pending";
+      console.error(`${tag} Provider call did not complete`, reference, error);
     }
-    if (outcome !== "success") {
-      logProviderFailure(tag, reference, spec.providerId, result, outcome, [spec.phone, spec.recipient]);
-    }
-  } catch (error) {
-    response = error instanceof Error ? error.message : "Provider call failed";
-    outcome = error instanceof NotSentError ? "failed" : "pending";
-    console.error(`${tag} Provider call did not complete`, reference, error);
+
+    await recordAttempt({
+      transactionId: reference,
+      attempt: i + 1,
+      providerId: route.providerId,
+      outcome: attempt,
+      httpStatus,
+    }).catch((error) => console.error(`${tag} Could not record attempt`, reference, error));
+
+    if (outcome !== "failed") break;
   }
 
   if (outcome === "success") {
     await finishTransaction(reference, "success", { response });
     await onPurchaseSuccess(reference);
+    after(() =>
+      notify(user.sub, {
+        id: `tx-${reference}`,
+        category: "transaction",
+        title: "Purchase successful",
+        body: `${spec.title} ${copy.done}.`,
+      }),
+    );
     revalidatePath("/dashboard");
     return { ok: true, status: "success", message: await purchaseMessage(service, "success", { ...vars, ...extra }) };
   }
@@ -184,6 +234,14 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
   if (outcome === "failed") {
     await finishTransaction(reference, "failed", { reason: copy.rejected, response });
     const refunded = await refundAndMark(user.sub, spec.price, charge.cashbackUsed, reference);
+    after(() =>
+      notify(user.sub, {
+        id: `tx-${reference}`,
+        category: "transaction",
+        title: "Purchase failed",
+        body: `${spec.title}: ${copy.rejected} ${refundNote(refunded)}`,
+      }),
+    );
     revalidatePath("/dashboard");
     return purchaseFail(await purchaseMessage(service, "failed", { ...vars, refund_note: refundNote(refunded) }));
   }

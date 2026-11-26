@@ -18,6 +18,7 @@ import { formatNaira, formatNumber } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 import { MeterCheckNote, useMeterCheck } from "@/components/dashboard/meter-check";
+import { PinDialog } from "@/components/dashboard/pin-dialog";
 
 const input =
   "h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-colors placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
@@ -34,6 +35,7 @@ export function ElectricityPurchase({
   canVerify,
   defaultUseCashback,
   confirmPurchases,
+  pinRequired,
 }: {
   discos: ElectricityDisco[];
   balance: number | null;
@@ -42,6 +44,7 @@ export function ElectricityPurchase({
   canVerify: boolean;
   defaultUseCashback: boolean;
   confirmPurchases: boolean;
+  pinRequired: boolean;
 }) {
   const ids = useId();
   const [pending, startTransition] = useTransition();
@@ -55,6 +58,8 @@ export function ElectricityPurchase({
   const [reference, setReference] = useState(() => crypto.randomUUID());
   const [useCashback, setUseCashback] = useState(defaultUseCashback);
   const { check, schedule, reset, verified } = useMeterCheck(canVerify);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
   const amount = amountText === "" ? NaN : Number(amountText);
@@ -73,10 +78,15 @@ export function ElectricityPurchase({
   const hasPackageRate = disco.discount > disco.standardDiscount;
   const quickAmounts = QUICK_AMOUNTS.filter((value) => value >= disco.min && value <= disco.max);
 
-  function submit() {
+  function submit(pin?: string) {
     setTouched(true);
     if (pending || amountError || meterError || phoneError || !verified || (useCashback ? shortWithCashback : short)) return;
-    if (confirmPurchases && !window.confirm(`Buy ₦${formatNumber(amount)} electricity for ${formatNaira(walletPart)}?`)) return;
+    if (pin === undefined && confirmPurchases && !window.confirm(`Buy ₦${formatNumber(amount)} electricity for ${formatNaira(walletPart)}?`)) return;
+    if (pin === undefined && pinRequired) {
+      setPinError(null);
+      setPinOpen(true);
+      return;
+    }
     startTransition(async () => {
       try {
         const outcome = await purchaseElectricity({
@@ -87,7 +97,14 @@ export function ElectricityPurchase({
           phone,
           reference,
           useCashback,
+          pin,
         });
+        if (!outcome.ok && outcome.pin) {
+          setPinError(outcome.error);
+          setResult(outcome);
+          return;
+        }
+        setPinOpen(false);
         setResult(outcome);
         setReference(crypto.randomUUID());
         if (outcome.ok && outcome.status === "success") {
@@ -337,6 +354,7 @@ export function ElectricityPurchase({
           </div>
         )}
       </aside>
+      <PinDialog open={pinOpen} pending={pending} error={pinError} onSubmit={(pin) => submit(pin)} onCancel={() => setPinOpen(false)} />
     </div>
   );
 }

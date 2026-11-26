@@ -13,6 +13,7 @@ import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseAirtime } from "@/app/dashboard/airtime/actions";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
+import { PinDialog } from "@/components/dashboard/pin-dialog";
 
 type Errors = { amount?: string; phone?: string };
 
@@ -30,6 +31,7 @@ export function AirtimePurchase({
   defaultPhone,
   defaultUseCashback,
   confirmPurchases,
+  pinRequired,
 }: {
   networks: AirtimeCatalogNetwork[];
   balance: number | null;
@@ -37,6 +39,7 @@ export function AirtimePurchase({
   defaultPhone?: string;
   defaultUseCashback: boolean;
   confirmPurchases: boolean;
+  pinRequired: boolean;
 }) {
   const router = useRouter();
   const base = useId();
@@ -51,6 +54,8 @@ export function AirtimePurchase({
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [useCashback, setUseCashback] = useState(defaultUseCashback);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -110,15 +115,17 @@ export function AirtimePurchase({
     setReference(nextReference);
     setResult(null);
     if (confirmPurchases) setConfirming(true);
-    else pay(nextReference);
+    else if (pinRequired) {
+      setPinError(null);
+      setPinOpen(true);
+    } else pay(nextReference);
   }
 
-  function pay(referenceOverride?: string) {
+  function pay(referenceOverride?: string, pin?: string) {
     if (pending || !network || !activeType || !range) return;
     startTransition(async () => {
       try {
-        setResult(
-          await purchaseAirtime({
+        const outcome = await purchaseAirtime({
             networkId: network.id,
             typeId: activeType.id,
             amount: amountValue,
@@ -126,8 +133,11 @@ export function AirtimePurchase({
             reference: referenceOverride ?? reference,
             skipNetworkCheck: skipCheck,
             useCashback,
-          }),
-        );
+            pin,
+          });
+        setResult(outcome);
+        if (!outcome.ok && outcome.pin) setPinError(outcome.error);
+        else setPinOpen(false);
       } catch (cause) {
         console.error("[airtime-purchase] Request failed", cause);
         setResult({
@@ -360,7 +370,12 @@ export function AirtimePurchase({
                 <button type="button" onClick={close} disabled={pending} className={btnGhost}>
                   Cancel
                 </button>
-                <button type="button"                 onClick={() => pay()} disabled={pending} className={btnPrimary}>
+                <button type="button" onClick={() => {
+                  if (pinRequired) {
+                    setPinError(null);
+                    setPinOpen(true);
+                  } else pay();
+                }} disabled={pending} className={btnPrimary}>
                   {pending ? "Buying…" : `Pay ${formatNaira(price)}`}
                 </button>
               </div>
@@ -368,6 +383,16 @@ export function AirtimePurchase({
           )}
         </Modal>
       )}
+      <PinDialog
+        open={pinOpen}
+        pending={pending}
+        error={pinError}
+        onSubmit={(pin) => {
+          setConfirming(false);
+          pay(undefined, pin);
+        }}
+        onCancel={() => setPinOpen(false)}
+      />
     </div>
   );
 }

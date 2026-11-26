@@ -12,6 +12,7 @@ import { checkNetwork } from "@/lib/network-prefix";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseData } from "@/app/dashboard/data/actions";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
+import { PinDialog } from "@/components/dashboard/pin-dialog";
 
 type Errors = { plan?: string; phone?: string };
 
@@ -29,6 +30,7 @@ export function DataPurchase({
   defaultPhone,
   defaultUseCashback,
   confirmPurchases,
+  pinRequired,
 }: {
   networks: CatalogNetwork[];
   balance: number | null;
@@ -36,6 +38,7 @@ export function DataPurchase({
   defaultPhone?: string;
   defaultUseCashback: boolean;
   confirmPurchases: boolean;
+  pinRequired: boolean;
 }) {
   const router = useRouter();
   const base = useId();
@@ -50,6 +53,8 @@ export function DataPurchase({
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [useCashback, setUseCashback] = useState(defaultUseCashback);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -91,20 +96,27 @@ export function DataPurchase({
     setReference(nextReference);
     setResult(null);
     if (confirmPurchases) setConfirming(true);
-    else pay(nextReference);
+    else if (pinRequired) {
+      setPinError(null);
+      setPinOpen(true);
+    } else pay(nextReference);
   }
 
-  function pay(referenceOverride?: string) {
+  function pay(referenceOverride?: string, pin?: string) {
     if (pending || !selected) return;
     startTransition(async () => {
       try {
-        setResult(await purchaseData({
+        const outcome = await purchaseData({
           planId: selected.id,
           phone,
           reference: referenceOverride ?? reference,
           skipNetworkCheck: skipCheck,
           useCashback,
-        }));
+          pin,
+        });
+        setResult(outcome);
+        if (!outcome.ok && outcome.pin) setPinError(outcome.error);
+        else setPinOpen(false);
       } catch (cause) {
         console.error("[data-purchase] Request failed", cause);
         setResult({
@@ -312,7 +324,12 @@ export function DataPurchase({
                 <button type="button" onClick={close} disabled={pending} className={btnGhost}>
                   Cancel
                 </button>
-                <button type="button"                 onClick={() => pay()} disabled={pending} className={btnPrimary}>
+                <button type="button" onClick={() => {
+                  if (pinRequired) {
+                    setPinError(null);
+                    setPinOpen(true);
+                  } else pay();
+                }} disabled={pending} className={btnPrimary}>
                   {pending ? "Buying…" : `Pay ${formatNaira(selected.price)}`}
                 </button>
               </div>
@@ -320,6 +337,16 @@ export function DataPurchase({
           )}
         </Modal>
       )}
+      <PinDialog
+        open={pinOpen}
+        pending={pending}
+        error={pinError}
+        onSubmit={(pin) => {
+          setConfirming(false);
+          pay(undefined, pin);
+        }}
+        onCancel={() => setPinOpen(false)}
+      />
     </div>
   );
 }

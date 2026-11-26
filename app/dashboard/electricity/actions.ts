@@ -55,7 +55,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { discoId, meterType, meter, amount, phone, reference, useCashback } = input as Record<string, unknown>;
+  const { discoId, meterType, meter, amount, phone, reference, useCashback, pin } = input as Record<string, unknown>;
   const type = METER_TYPES.find((item) => item.id === meterType);
   if (
     typeof discoId !== "string" ||
@@ -75,7 +75,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
   }
   if (typeof phone !== "string" || !PHONE_PATTERN.test(phone)) return purchaseFail(BAD_PHONE);
 
-  const opened = await openPurchase("electricity", user.sub, reference);
+  const opened = await openPurchase("electricity", user.sub, reference, pin);
   if ("result" in opened) return opened.result;
 
   const quote = await getElectricityQuote(discoId, amount, opened.customer.packageId);

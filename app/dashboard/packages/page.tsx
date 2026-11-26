@@ -7,6 +7,7 @@ import { getCustomerPackage, listPackages } from "@/lib/db/packages";
 import { formatNaira } from "@/lib/format";
 import { requireSpursUser } from "@/lib/spurs";
 import { getNairaBalance } from "@/lib/wallet";
+import { getPinState } from "@/lib/db/pin";
 
 export const metadata: Metadata = { title: "Packages | Spur VTU" };
 export const instant = false;
@@ -14,11 +15,12 @@ export const instant = false;
 export default async function PackagesPage() {
   await connection();
   const user = await requireSpursUser();
-  const [packages, current, balance, customer] = await Promise.all([
+  const [packages, current, balance, customer, pinState] = await Promise.all([
     listPackages(),
     getCustomerPackage(user.sub),
     getNairaBalance(user.sub),
     getCustomerForPurchase(user.sub),
+    getPinState(user.sub),
   ]);
   const suspended = customer?.status === "suspended";
 
@@ -78,7 +80,7 @@ export default async function PackagesPage() {
                 </p>
                 <div className="mt-5">
                   {canUpgrade ? (
-                    <UpgradeButton packageId={pkg.id} name={pkg.name} fee={pkg.upgradeFee} />
+                    <UpgradeButton packageId={pkg.id} name={pkg.name} fee={pkg.upgradeFee} pinRequired={pinState.hasPin} />
                   ) : (
                     <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
                       {isCurrent ? "You're on this package." : "Not available to switch to."}

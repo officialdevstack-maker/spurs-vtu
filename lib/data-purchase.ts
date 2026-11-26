@@ -20,4 +20,4 @@ export type CatalogNetwork = {
 
 export type PurchaseResult =
   | { ok: true; status: "success" | "pending"; message: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; pin?: boolean };

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { THEME_SCRIPT } from "@/lib/theme";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 const display = Familjen_Grotesk({
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
   description: "Airtime, data, cable TV and electricity from one wallet.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

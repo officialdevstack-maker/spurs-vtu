@@ -7,6 +7,7 @@ import { checkSmartcard, purchaseCable, type SmartcardCheckResult } from "@/app/
 import { SMARTCARD_PATTERN, type CableCatalogOperator } from "@/lib/cable-purchase";
 import { formatNaira } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
+import { PinDialog } from "@/components/dashboard/pin-dialog";
 
 type Check = { status: "idle" } | { status: "checking" } | SmartcardCheckResult;
 const IDLE: Check = { status: "idle" };
@@ -22,6 +23,7 @@ export function CablePurchase({
   defaultPhone,
   defaultUseCashback,
   confirmPurchases,
+  pinRequired,
 }: {
   operators: CableCatalogOperator[];
   balance: number | null;
@@ -30,6 +32,7 @@ export function CablePurchase({
   defaultPhone?: string;
   defaultUseCashback: boolean;
   confirmPurchases: boolean;
+  pinRequired: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -43,6 +46,8 @@ export function CablePurchase({
   const reference = useRef<string>(crypto.randomUUID());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seq = useRef(0);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -72,12 +77,17 @@ export function CablePurchase({
   const verified = !canVerify || check.status === "found" || check.status === "unavailable";
   const ready = !!plan && SMARTCARD_PATTERN.test(smartcard) && PHONE_PATTERN.test(phone) && verified && !tooLow;
 
-  function submit() {
+  function submit(pin?: string) {
     if (!plan || pending) return;
-    if (confirmPurchases && !window.confirm(`Buy ${plan.name} for ${formatNaira(walletPart)}?`)) return;
+    if (pin === undefined && confirmPurchases && !window.confirm(`Buy ${plan.name} for ${formatNaira(walletPart)}?`)) return;
     setError("");
     startTransition(async () => {
-      const result = await purchaseCable({ planId: plan.id, smartcard, phone, reference: reference.current, useCashback });
+      const result = await purchaseCable({ planId: plan.id, smartcard, phone, reference: reference.current, useCashback, pin });
+      if (!result.ok && result.pin) {
+        setPinError(result.error);
+        return;
+      }
+      setPinOpen(false);
       reference.current = crypto.randomUUID();
       if (!result.ok) {
         setError(result.error);
@@ -230,11 +240,19 @@ export function CablePurchase({
       <button
         type="button"
         disabled={!ready || pending}
-        onClick={submit}
+        onClick={() => {
+          if (!plan) return;
+          if (confirmPurchases && !window.confirm(`Buy ${plan.name} for ${formatNaira(walletPart)}?`)) return;
+          if (pinRequired) {
+            setPinError(null);
+            setPinOpen(true);
+          } else submit();
+        }}
         className="h-12 w-full rounded-xl bg-[#F2B632] text-base font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Processing…" : plan ? `Pay ${formatNaira(walletPart)}` : "Choose a bouquet"}
       </button>
+      <PinDialog open={pinOpen} pending={pending} error={pinError} onSubmit={(pin) => submit(pin)} onCancel={() => setPinOpen(false)} />
     </div>
   );
 }

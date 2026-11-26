@@ -9,6 +9,7 @@ import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
 import { getProfileSettings } from "@/lib/db/profile";
+import { getPinState } from "@/lib/db/pin";
 
 export const metadata: Metadata = { title: "Cable TV | Spur VTU" };
 export const instant = false;
@@ -17,13 +18,14 @@ export default async function BuyCablePage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [operators, balance, pkg, cashback, canVerify, settings] = await Promise.all([
+  const [operators, balance, pkg, cashback, canVerify, settings, pinState] = await Promise.all([
     getCableCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
     hasCableVerifyProvider(),
     getProfileSettings(user.sub),
+    getPinState(user.sub),
   ]);
 
   return (
@@ -56,6 +58,7 @@ export default async function BuyCablePage() {
           defaultPhone={customer?.phone ?? undefined}
           defaultUseCashback={settings.useCashbackDefault}
           confirmPurchases={settings.confirmPurchases}
+          pinRequired={pinState.hasPin}
         />
       )}
     </div>

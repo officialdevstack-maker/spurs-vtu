@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import {
   getTransactionState,
   hasRecordedDebit,
@@ -7,8 +8,9 @@ import {
   type PendingTransactionId,
   type SettledTransaction,
 } from "@/lib/db/settlement";
-import { markRefunded } from "@/lib/db/transactions";
+import { findTransaction, markRefunded } from "@/lib/db/transactions";
 import { refundPurchase } from "@/lib/payment";
+import { notify } from "@/lib/notify";
 import { onPurchaseSuccess } from "@/lib/rewards";
 import type { WebhookResult } from "@/lib/admin/webhooks";
 
@@ -30,6 +32,20 @@ async function refundIfNeeded(tx: SettledTransaction): Promise<RefundState> {
   return "needed";
 }
 
+async function announce(tx: SettledTransaction, outcome: "success" | "failed", refund: RefundState) {
+  const info = await findTransaction(tx.id, tx.customerId).catch(() => null);
+  const item = info?.title ?? "Your order";
+  await notify(tx.customerId, {
+    id: `tx-${tx.id}`,
+    category: "transaction",
+    title: outcome === "success" ? "Purchase successful" : "Purchase failed",
+    body:
+      outcome === "success"
+        ? `${item} went through.`
+        : `${item} couldn't be completed. ${refund === "refunded" ? "Your money is back in your wallet." : "Your refund is being processed."}`,
+  });
+}
+
 export async function settleFromWebhook(input: {
   providerId: string;
   reference: string;
@@ -46,8 +62,13 @@ export async function settleFromWebhook(input: {
   });
 
   if (settled) {
-    if (outcome === "failed") await refundIfNeeded(settled);
-    if (outcome === "success") await onPurchaseSuccess(reference);
+    if (outcome === "failed") {
+      const refund = await refundIfNeeded(settled);
+      after(() => announce(settled, "failed", refund));
+    } else {
+      await onPurchaseSuccess(reference);
+      after(() => announce(settled, "success", "none"));
+    }
     return "applied";
   }
 
@@ -81,6 +102,7 @@ export async function failPending(
         if (!settled) continue;
         report.failed += 1;
         const refund = await refundIfNeeded(settled);
+        after(() => announce(settled, "failed", refund));
         if (refund === "refunded") report.refunded += 1;
         if (refund === "needed") report.refundNeeded += 1;
       } catch (error) {

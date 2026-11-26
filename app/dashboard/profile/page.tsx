@@ -5,6 +5,8 @@ import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { getProfileSettings } from "@/lib/db/profile";
 import { getFlutterwaveAccount } from "@/lib/db/wallet";
 import { requireSpursUser } from "@/lib/spurs";
+import { PinSettings } from "@/components/dashboard/pin-settings";
+import { getPinState } from "@/lib/db/pin";
 
 export const metadata: Metadata = { title: "Profile | Spur VTU" };
 export const instant = false;
@@ -12,10 +14,11 @@ export const instant = false;
 export default async function ProfilePage() {
   await connection();
   const user = await requireSpursUser();
-  const [customer, settings, account] = await Promise.all([
+  const [customer, settings, account, pinState] = await Promise.all([
     getCustomerForPurchase(user.sub),
     getProfileSettings(user.sub),
     getFlutterwaveAccount(user.sub),
+    getPinState(user.sub),
   ]);
   const username = "username" in user && typeof user.username === "string" ? user.username : null;
   const verified = "kyc_status" in user ? user.kyc_status === "verified" : null;
@@ -39,6 +42,7 @@ export default async function ProfilePage() {
         }
         settings={settings}
       />
+      <PinSettings hasPin={pinState.hasPin} />
     </div>
   );
 }

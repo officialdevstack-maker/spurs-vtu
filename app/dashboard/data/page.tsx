@@ -8,6 +8,7 @@ import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
 import { getProfileSettings } from "@/lib/db/profile";
+import { getPinState } from "@/lib/db/pin";
 
 export const metadata: Metadata = { title: "Buy data | Spur VTU" };
 export const instant = false;
@@ -16,12 +17,13 @@ export default async function BuyDataPage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [networks, balance, pkg, cashback, settings] = await Promise.all([
+  const [networks, balance, pkg, cashback, settings, pinState] = await Promise.all([
     getDataCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
     getProfileSettings(user.sub),
+    getPinState(user.sub),
   ]);
 
   return (
@@ -55,6 +57,7 @@ export default async function BuyDataPage() {
           defaultPhone={customer?.phone ?? undefined}
           defaultUseCashback={settings.useCashbackDefault}
           confirmPurchases={settings.confirmPurchases}
+          pinRequired={pinState.hasPin}
         />
       )}
     </div>
