@@ -233,7 +233,7 @@ export function CablePurchase({
 
       {plan && (
         <dl className="space-y-2 rounded-2xl border border-gray-200 bg-white p-5 text-sm dark:border-white/10 dark:bg-white/5">
-          <div className="flex justify-between"><dt className="text-gray-600 dark:text-[#9FB3B7]">Price</dt><dd className="tabular-nums">{formatNaira(plan.price)}</dd></div>
+          <div className="flex justify-between"><dt className="text-gray-600 dark:text-[#9FB3B7]">Price</dt><dd className="tabular-nums">{formatNaira(finalPrice ?? plan.price)}</dd></div>
           {cashbackApplied > 0 && (
             <div className="flex justify-between"><dt className="text-gray-600 dark:text-[#9FB3B7]">Cashback</dt><dd className="tabular-nums">−{formatNaira(cashbackApplied)}</dd></div>
           )}

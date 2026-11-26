@@ -300,9 +300,15 @@ export function ElectricityPurchase({
               <dt className="text-gray-600 dark:text-[#9FB3B7]">Discount</dt>
               <dd className="font-medium tabular-nums">{disco.discount}%{saving !== null && saving > 0 && ` (−${formatNaira(saving)})`}</dd>
             </div>
+            {promoPreview?.ok && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-gray-600 dark:text-[#9FB3B7]">Promo</dt>
+                <dd className="font-medium tabular-nums">−{formatNaira(promoPreview.discount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-4 border-t border-dashed border-gray-300 pt-3 text-base dark:border-white/15">
               <dt className="font-semibold">You pay</dt>
-              <dd className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">{price === null ? "—" : formatNaira(price)}</dd>
+              <dd className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">{finalPrice === null ? "—" : formatNaira(finalPrice)}</dd>
             </div>
             {useCashback && price !== null && (
               <>

@@ -295,7 +295,7 @@ export function AirtimePurchase({
         <div className="flex items-baseline justify-between gap-4">
           <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">You pay</p>
           <p className="font-[family-name:var(--font-display)] text-2xl font-bold tabular-nums">
-            {price !== null ? formatNaira(price) : "—"}
+            {finalPrice !== null ? formatNaira(finalPrice) : "—"}
           </p>
         </div>
         {price !== null && saving > 0 && (
@@ -306,7 +306,7 @@ export function AirtimePurchase({
         {balance !== null && (
           <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">Wallet balance: {formatNaira(balance)}</p>
         )}
-        {price !== null && <CashbackToggle balance={cashback} price={price} checked={useCashback} onChange={setUseCashback} />}
+        {finalPrice !== null && <CashbackToggle balance={cashback} price={finalPrice} checked={useCashback} onChange={setUseCashback} />}
         {(useCashback ? shortWithCashback : short) && (
           <p role="alert" className="text-sm text-[#C8432B]">
             Your balance is too low for this amount.{" "}
@@ -372,7 +372,7 @@ export function AirtimePurchase({
                 )}
                 <div className="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-white/10">
                   <dt className="text-gray-600 dark:text-[#9FB3B7]">You pay</dt>
-                  <dd className="font-semibold tabular-nums">{formatNaira(price)}</dd>
+                  <dd className="font-semibold tabular-nums">{formatNaira(finalPrice ?? price)}</dd>
                 </div>
                 {balance !== null && (
                   <div className="flex justify-between gap-4">
@@ -391,7 +391,7 @@ export function AirtimePurchase({
                     setPinOpen(true);
                   } else pay();
                 }} disabled={pending} className={btnPrimary}>
-                  {pending ? "Buying…" : `Pay ${formatNaira(price)}`}
+                  {pending ? "Buying…" : `Pay ${formatNaira(finalPrice ?? price)}`}
                 </button>
               </div>
             </>
