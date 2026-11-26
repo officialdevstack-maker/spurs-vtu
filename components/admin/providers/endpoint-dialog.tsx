@@ -10,8 +10,10 @@ import {
   type ProviderEndpoint,
   type ProviderService,
 } from "@/lib/admin/providers";
+import type { ResponseMap } from "@/lib/admin/providers";
 import type { EndpointFields } from "@/lib/db/providers";
 import type { ActionResult } from "@/app/admin/gateways/providers/actions";
+import { ResponseMapFields } from "./response-map-fields";
 
 export function EndpointDialog({
   provider,
@@ -31,6 +33,7 @@ export function EndpointDialog({
   const [method, setMethod] = useState<HttpMethod>(endpoint?.method ?? "POST");
   const [path, setPath] = useState(endpoint?.path ?? "");
   const [bodyTemplate, setBodyTemplate] = useState(endpoint?.bodyTemplate ?? "");
+  const [responseMap, setResponseMap] = useState<ResponseMap>(endpoint?.responseMap ?? {});
   const [active, setActive] = useState(endpoint?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,7 +45,7 @@ export function EndpointDialog({
 
     startTransition(async () => {
       try {
-        const result = await onSubmit({ service, method, path, bodyTemplate, active });
+        const result = await onSubmit({ service, method, path, bodyTemplate, responseMap, active });
         if (result.ok) {
           toast.success(endpoint ? "Endpoint updated" : "Endpoint added");
           onClose();
@@ -107,7 +110,7 @@ export function EndpointDialog({
           <Field
             id={`${base}-body`}
             label="Body template"
-            hint="Placeholders: {phone} {amount} {network} {plan} {type} {reference} {meter} {decoder}"
+            hint="Placeholders: {phone} {amount} {network} {plan} {type} {reference} {meter} {decoder} {disco} {username} {password}"
           >
             <textarea
               id={`${base}-body`}
@@ -121,6 +124,8 @@ export function EndpointDialog({
             />
           </Field>
         )}
+
+        <ResponseMapFields service={service} value={responseMap} onChange={setResponseMap} />
 
         <label className="flex items-center gap-3 text-sm font-medium">
           <input

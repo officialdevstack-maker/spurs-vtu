@@ -4,7 +4,7 @@ import { Zap } from "lucide-react";
 import { requireSpursUser } from "@/lib/spurs";
 import { ElectricityPurchase } from "@/components/dashboard/electricity-purchase";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
-import { getElectricityCatalog } from "@/lib/db/electricity";
+import { getElectricityCatalog, hasElectricityVerifyProvider } from "@/lib/db/electricity";
 import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
@@ -16,11 +16,12 @@ export default async function BuyElectricityPage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [discos, balance, pkg, cashback] = await Promise.all([
+  const [discos, balance, pkg, cashback, canVerify] = await Promise.all([
     getElectricityCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
+    hasElectricityVerifyProvider(),
   ]);
 
   return (
@@ -45,7 +46,13 @@ export default async function BuyElectricityPage() {
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Please check back soon.</p>
         </div>
       ) : (
-        <ElectricityPurchase discos={discos} balance={balance} cashback={cashback} defaultPhone={customer?.phone ?? undefined} />
+        <ElectricityPurchase
+          discos={discos}
+          balance={balance}
+          cashback={cashback}
+          canVerify={canVerify}
+          defaultPhone={customer?.phone ?? undefined}
+        />
       )}
     </div>
   );

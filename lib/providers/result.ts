@@ -1,4 +1,5 @@
 import type { ProviderResponse } from "@/lib/providers/call";
+import { readPath } from "@/lib/providers/response-map";
 
 export type Outcome = "success" | "failed" | "pending";
 
@@ -20,8 +21,8 @@ function statusOf(data: unknown, depth = 0): string | boolean | undefined {
 export function interpretProviderResponse(response: ProviderResponse): Outcome {
   if (response.status >= 500 || response.status === 408) return "pending";
   if (!response.ok) return "failed";
-
-  const status = statusOf(response.data);
+  const path = response.map?.status;
+  const status = path ? readPath(response.data, path) : statusOf(response.data);
   if (status === true) return "success";
   if (status === false) return "failed";
   if (typeof status === "string") {

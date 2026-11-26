@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
-import { AUTH_TYPES, KINDS, PROVIDERS_PATH, PROVIDER_SERVICES, type HttpMethod } from "@/lib/admin/providers";
+import {
+  AUTH_TYPES, KINDS, PROVIDERS_PATH, PROVIDER_SERVICES, RESPONSE_FIELDS,
+  type HttpMethod, type ProviderService, type ResponseField, type ResponseMap,
+} from "@/lib/admin/providers";
 import { slugify } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/providers";
 import type { EndpointFields, ProviderFields } from "@/lib/db/providers";
@@ -135,6 +138,29 @@ export async function removeProvider(id: string): Promise<ActionResult> {
   return run(() => db.deleteProvider(id));
 }
 
+const RESPONSE_PATH = /^[\w-]+(\.[\w-]+)*$/;
+
+function parseResponseMap(service: ProviderService, input: unknown): ResponseMap | string {
+  if (input === undefined || input === null) input = {};
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return "Check the response mapping and try again.";
+  }
+
+  const allowed = new Set<ResponseField>((RESPONSE_FIELDS[service] ?? []).map((field) => field.key));
+  const map: ResponseMap = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!allowed.has(key as ResponseField)) continue;
+    const path = typeof value === "string" ? value.trim() : "";
+    if (!path) continue;
+    if (path.length > 100 || !RESPONSE_PATH.test(path)) {
+      return "Response paths use letters, numbers, _, - and dots, like data.customer_name.";
+    }
+    map[key as ResponseField] = path;
+  }
+  if (service === "auth" && !map.token) return "Say where the token is in the login response.";
+  return map;
+}
+
 function parseEndpoint(input: unknown): EndpointFields | string {
   if (!input || typeof input !== "object") return "Check the endpoint details and try again.";
   const raw = input as Partial<EndpointFields>;
@@ -154,7 +180,16 @@ function parseEndpoint(input: unknown): EndpointFields | string {
   if (bodyTemplate.length > 2000) return "The body template is too long (2,000 characters max).";
   if (typeof raw.active !== "boolean") return "Check the endpoint details and try again.";
 
-  return { service, method, path, bodyTemplate: method === "GET" ? "" : bodyTemplate, active: raw.active };
+  const responseMap = parseResponseMap(service, raw.responseMap);
+  if (typeof responseMap === "string") return responseMap;
+  return {
+    service,
+    method,
+    path,
+    bodyTemplate: method === "GET" ? "" : bodyTemplate,
+    responseMap,
+    active: raw.active,
+  };
 }
 
 export async function saveEndpoint(providerId: string, input: EndpointFields): Promise<ActionResult> {

@@ -1,8 +1,8 @@
 import "server-only";
 import { getProviderForCall } from "@/lib/db/providers";
-import type { ProviderService } from "@/lib/admin/providers";
-
-type Vars = Record<string, string | number>;
+import type { ProviderService, ResponseMap } from "@/lib/admin/providers";
+import { fill, type Vars } from "@/lib/providers/fill";
+import { getLoginToken } from "@/lib/providers/login";
 
 export class NotSentError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -11,41 +11,35 @@ export class NotSentError extends Error {
   }
 }
 
-function fill(template: string, vars: Vars, mode: "body" | "path"): string {
-  return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
-    const value = vars[key];
-    if (value === undefined) throw new Error(`Missing value for {${key}}.`);
-    if (mode === "path") return encodeURIComponent(String(value));
-    return typeof value === "number" ? String(value) : JSON.stringify(value);
-  });
-}
+export type ProviderResponse = { ok: boolean; status: number; data: unknown; map?: ResponseMap };
 
-export type ProviderResponse = { ok: boolean; status: number; data: unknown };
+type Prepared = {
+  url: URL;
+  method: "GET" | "POST";
+  headers: Record<string, string>;
+  body?: string;
+  timeoutMs: number;
+  login: boolean;
+  secretParam?: string;
+  map: ResponseMap;
+};
 
-export async function callProviderEndpoint(
-  providerId: string,
-  service: ProviderService,
-  vars: Vars,
-): Promise<ProviderResponse> {
-  let url: URL;
-  let headers: Record<string, string>;
-  let method: "GET" | "POST";
-  let body: string | undefined;
-  let timeoutMs: number;
-
+async function prepare(providerId: string, service: ProviderService, vars: Vars, freshToken: boolean): Promise<Prepared> {
   try {
     const provider = await getProviderForCall(providerId, service);
     if (!provider) throw new Error("Provider is off or has no active endpoint for this service.");
 
     const resolvedVars: Vars = { ...vars };
-    const networkId = typeof resolvedVars.network === "string" || typeof resolvedVars.network === "number" ? String(resolvedVars.network) : undefined;
+    const networkId =
+      typeof resolvedVars.network === "string" || typeof resolvedVars.network === "number"
+        ? String(resolvedVars.network)
+        : undefined;
     if (networkId && provider.networkCodes[networkId] !== undefined) {
       resolvedVars.network = provider.networkCodes[networkId];
     }
 
-    url = new URL(`${provider.baseUrl}${fill(provider.path, resolvedVars, "path")}`);
-    headers = { Accept: "application/json" };
-
+    const url = new URL(`${provider.baseUrl}${fill(provider.path, resolvedVars, "path")}`);
+    const headers: Record<string, string> = { Accept: "application/json" };
     switch (provider.authType) {
       case "bearer":
         headers.Authorization = `Bearer ${provider.secret}`;
@@ -59,30 +53,49 @@ export async function callProviderEndpoint(
       case "query_param":
         url.searchParams.set(provider.authName, provider.secret);
         break;
+      case "login":
+        headers.Authorization = `Bearer ${await getLoginToken(providerId, freshToken)}`;
+        break;
     }
 
-    method = provider.method;
+    let body: string | undefined;
     if (provider.method === "POST") {
       headers["Content-Type"] = "application/json";
       body = provider.bodyTemplate ? fill(provider.bodyTemplate, resolvedVars, "body") : undefined;
     }
-    timeoutMs = provider.timeoutMs;
-  } catch (error) {
-    throw new NotSentError(error instanceof Error ? error.message : "Could not prepare the provider request.", {
-      cause: error,
-    });
-  }
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body,
+    return {
+      url,
+      method: provider.method,
+      headers,
+      body,
+      timeoutMs: provider.timeoutMs,
+      login: provider.authType === "login",
+      secretParam: provider.authType === "query_param" ? provider.authName : undefined,
+      map: provider.responseMap,
+    };
+  } catch (error) {
+    throw new NotSentError(error instanceof Error ? error.message : "Could not prepare the provider request.", { cause: error });
+  }
+}
+
+async function execute(request: Prepared): Promise<ProviderResponse> {
+  const response = await fetch(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
     cache: "no-store",
     redirect: "error",
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(request.timeoutMs),
   });
 
-  console.log(body ? `[provider-call] ${method} ${url} with body: ${body}` : `[provider-call] ${method} ${url}`);
+  const shown = new URL(request.url);
+  if (request.secretParam) shown.searchParams.delete(request.secretParam);
+  console.log(
+    request.body
+      ? `[provider-call] ${request.method} ${shown} with body: ${request.body}`
+      : `[provider-call] ${request.method} ${shown}`,
+  );
 
   const text = await response.text();
   let data: unknown = text;
@@ -91,6 +104,19 @@ export async function callProviderEndpoint(
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
   }
-
   return { ok: response.ok, status: response.status, data };
+}
+
+export async function callProviderEndpoint(
+  providerId: string,
+  service: ProviderService,
+  vars: Vars,
+): Promise<ProviderResponse> {
+  let request = await prepare(providerId, service, vars, false);
+  let response = await execute(request);
+  if (request.login && response.status === 401) {
+    request = await prepare(providerId, service, vars, true);
+    response = await execute(request);
+  }
+  return { ...response, map: request.map };
 }

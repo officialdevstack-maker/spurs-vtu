@@ -251,3 +251,28 @@ export async function pickElectricityProvider(preferredId: string | null): Promi
   );
   return rows[0]?.id ?? null;
 }
+
+export async function getDiscoForLookup(id: string): Promise<{ providerCode: string; providerId: string | null } | null> {
+  const { rows } = await getPool().query<{ provider_code: string; provider_id: string | null }>(
+    "select provider_code, provider_id from electricity_discos where id = $1 and enabled",
+    [id],
+  );
+  return rows[0] ? { providerCode: rows[0].provider_code, providerId: rows[0].provider_id } : null;
+}
+
+export async function pickElectricityVerifyProvider(preferredId: string | null): Promise<string | null> {
+  const { rows } = await getPool().query<{ id: string }>(
+    `select p.id
+     from providers p
+     join provider_endpoints e on e.provider_id = p.id and e.service = 'electricity_verify' and e.active
+     where p.enabled
+     order by ($1::text is not null and p.id = $1) desc, p.priority, p.name
+     limit 1`,
+    [preferredId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+export async function hasElectricityVerifyProvider(): Promise<boolean> {
+  return (await pickElectricityVerifyProvider(null)) !== null;
+}

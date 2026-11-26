@@ -1,7 +1,11 @@
 export type ProviderKind = "api" | "simhost";
-export type AuthType = "bearer" | "api_key_header" | "basic" | "query_param" | "none";
-export type ProviderService = "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "exam" | "balance";
+export type AuthType = "bearer" | "api_key_header" | "basic" | "query_param" | "login" | "none";
+export type ProviderService =
+  | "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "electricity_verify" | "exam" | "balance" | "auth";
 export type HttpMethod = "GET" | "POST";
+
+export type ResponseField = "status" | "name" | "address" | "balance" | "token" | "expires_in";
+export type ResponseMap = Partial<Record<ResponseField, string>>;
 
 export const KINDS: { id: ProviderKind; label: string; hint: string }[] = [
   { id: "api", label: "Third-party API", hint: "A vendor API. HTTPS only." },
@@ -34,6 +38,14 @@ export const AUTH_TYPES: {
     extraLabel: "Parameter name",
     extraHint: "For example api_key or token.",
   },
+  {
+    id: "login",
+    label: "Log in for a token",
+    secretLabel: "Password",
+    extra: "username",
+    extraLabel: "Username",
+    extraHint: "Needs an endpoint with service “Login (get token)”.",
+  },
   { id: "none", label: "No authentication", secretLabel: "" },
 ];
 
@@ -43,8 +55,10 @@ export const PROVIDER_SERVICES: { id: ProviderService; label: string }[] = [
   { id: "cable", label: "Cable TV" },
   { id: "cable_verify", label: "Cable TV: smartcard check" },
   { id: "electricity", label: "Electricity" },
+  { id: "electricity_verify", label: "Electricity: meter check" },
   { id: "exam", label: "Exam pins" },
   { id: "balance", label: "Balance check" },
+  { id: "auth", label: "Login (get token)" },
 ];
 
 export type ProviderEndpoint = {
@@ -53,7 +67,37 @@ export type ProviderEndpoint = {
   method: HttpMethod;
   path: string;
   bodyTemplate: string;
+  responseMap: ResponseMap;
   active: boolean;
+};
+
+type FieldInfo = { key: ResponseField; label: string; hint: string };
+const STATUS: FieldInfo = {
+  key: "status",
+  label: "Status",
+  hint: "Where success or failure is stated, like status or data.state. Empty means auto-detect.",
+};
+
+export const RESPONSE_FIELDS: Partial<Record<ProviderService, FieldInfo[]>> = {
+  auth: [
+    { key: "token", label: "Token", hint: "Where the token is, like data.access_token. Required." },
+    { key: "expires_in", label: "Lifetime in seconds", hint: "Optional. Without it, the token is reused for 50 minutes." },
+  ],
+  electricity_verify: [
+    { key: "name", label: "Customer name", hint: "Like data.customer_name. Empty means auto-detect." },
+    { key: "address", label: "Address", hint: "Optional. Shown under the name." },
+    { key: "balance", label: "Balance", hint: "Optional. Only shown if the provider returns one." },
+    STATUS,
+  ],
+  cable_verify: [
+    { key: "name", label: "Customer name", hint: "Like data.customer_name. Empty means auto-detect." },
+    { key: "balance", label: "Balance", hint: "Optional." },
+    STATUS,
+  ],
+  electricity: [STATUS, { key: "token", label: "Meter token", hint: "Where the prepaid token is. Empty means auto-detect." }],
+  airtime: [STATUS],
+  data: [STATUS],
+  cable: [STATUS],
 };
 
 export type NetworkOption = { id: string; name: string };

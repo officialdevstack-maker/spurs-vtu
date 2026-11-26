@@ -1,4 +1,4 @@
-import { Calculator, CreditCard, LayoutDashboard, Megaphone, Network, Package, Receipt, Users, Webhook } from "lucide-react";
+import { Calculator, CreditCard, Gift, LayoutDashboard, Megaphone, Network, Package, Receipt, Users, Webhook } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
 import type { NavGroup } from "@/lib/nav";
 
@@ -30,11 +30,18 @@ export const ADMIN_NAV: NavGroup[] = [
           { label: "Airtime & Data", href: "/admin/products/airtime-data", permission: "products.view" },
           { label: "Cable TV", href: "/admin/products/cable-tv", permission: "products.view" },
           { label: "Electricity", href: "/admin/products/electricity", permission: "products.view" },
+          { label: "Exam", href: "/admin/products/exam", permission: "products.view" },
+        ],
+      },
+      {
+        label: "Rewards",
+        href: "/admin/rewards",
+        icon: Gift,
+        children: [
           { label: "Cashback", href: "/admin/products/cashback", permission: "products.view" },
           { label: "Cashback activity", href: "/admin/products/cashback/activity", permission: "products.view" },
           { label: "Referrals", href: "/admin/products/referrals", permission: "products.view" },
           { label: "Referral activity", href: "/admin/products/referrals/activity", permission: "products.view" },
-          { label: "Exam", href: "/admin/products/exam", permission: "products.view" },
         ],
       },
       {

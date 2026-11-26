@@ -21,6 +21,9 @@ import { quoteCharge, takePayment, refundAndMark } from "@/lib/payment";
 import { onPurchaseSuccess } from "@/lib/rewards";
 import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
 import { firstName } from "@/lib/admin/purchase-templates";
+import { lookupMeter } from "@/lib/meter-lookup";
+import { mappedText } from "@/lib/providers/response-map";
+import type { MeterLookup } from "@/lib/electricity-purchase";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_AMOUNT = 1_000_000;
@@ -45,6 +48,23 @@ function findToken(data: unknown, depth = 0): string | null {
     if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
   }
   return findToken(record.data, depth + 1);
+}
+
+export async function checkMeter(input: unknown): Promise<MeterLookup> {
+  await requireSpursUser();
+  if (!input || typeof input !== "object") return { status: "unavailable" };
+  const { discoId, meterType, meter } = input as Record<string, unknown>;
+  const type = METER_TYPES.find((item) => item.id === meterType);
+  if (
+    typeof discoId !== "string" ||
+    !/^[a-z0-9-]{1,60}$/.test(discoId) ||
+    !type ||
+    typeof meter !== "string" ||
+    !METER_PATTERN.test(meter)
+  ) {
+    return { status: "unavailable" };
+  }
+  return lookupMeter(discoId, type.id, meter);
 }
 
 export async function purchaseElectricity(input: unknown): Promise<PurchaseResult> {
@@ -90,6 +110,10 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
   const providerId = await pickElectricityProvider(quote.providerId);
   if (!providerId) return fail("Electricity can't be bought right now. Please try again later.");
 
+  const check = await lookupMeter(discoId, type.id, meter, providerId);
+  if (check.status === "invalid") return fail("We couldn't find that meter number. Check it and try again.");
+  const holder = check.status === "found" ? check.name : null;
+
   const charge = await quoteCharge(user.sub, price, useCashback === true);
   const balance = await getNairaBalance(user.sub);
   if (balance !== null && balance < charge.walletPart) {
@@ -102,7 +126,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
     customerId: user.sub,
     service: "electricity",
     title,
-    detail: `Meter ${meter}`,
+    detail: holder ? `Meter ${meter} · ${holder}` : `Meter ${meter}`,
     amount: price,
     cost,
     networkId: null,
@@ -152,7 +176,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
     });
     outcome = interpretProviderResponse(result);
     response = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
-    token = findToken(result.data);
+    token = mappedText(result, "token") ?? findToken(result.data);
   } catch (error) {
     response = error instanceof Error ? error.message : "Provider call failed";
     outcome = error instanceof NotSentError ? "failed" : "pending";

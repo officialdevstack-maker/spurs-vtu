@@ -10,6 +10,7 @@ import type {
   ProviderEndpoint,
   ProviderKind,
   ProviderService,
+  ResponseMap,
 } from "@/lib/admin/providers";
 
 export type ProviderFields = {
@@ -30,6 +31,7 @@ export type EndpointFields = {
   method: HttpMethod;
   path: string;
   bodyTemplate: string;
+  responseMap: ResponseMap;
   active: boolean;
 };
 
@@ -56,6 +58,7 @@ type EndpointRow = {
   method: HttpMethod;
   path: string;
   body_template: string;
+  response_map: ResponseMap | null;
   active: boolean;
 };
 
@@ -67,6 +70,7 @@ const toEndpoint = (row: EndpointRow): ProviderEndpoint => ({
   method: row.method,
   path: row.path,
   bodyTemplate: row.body_template,
+  responseMap: row.response_map ?? {},
   active: row.active,
 });
 
@@ -79,7 +83,7 @@ export async function getProviders(): Promise<Provider[]> {
        from providers order by priority, name`,
     ),
     pool.query<EndpointRow>(
-      `select e.id, e.provider_id, e.service, e.method, e.path, e.body_template, e.active
+      `select e.id, e.provider_id, e.service, e.method, e.path, e.body_template, e.response_map, e.active
          from provider_endpoints e
         order by e.service`,
     ),
@@ -143,8 +147,8 @@ export async function createProvider(id: string, provider: ProviderFields): Prom
 }
 
 export async function updateProvider(id: string, provider: ProviderFields): Promise<boolean> {
-  return changed(
-    await getPool().query(
+  const pool = getPool();
+  const result = await pool.query(
       `update providers set
          name = $2, kind = $3, base_url = $4, auth_type = $5, auth_name = $6, auth_username = $7,
          secret_enc = case when $5 = 'none' then null else coalesce($8, secret_enc) end,
@@ -163,8 +167,9 @@ export async function updateProvider(id: string, provider: ProviderFields): Prom
         provider.priority,
         provider.timeoutMs,
       ],
-    ),
   );
+  await pool.query("delete from provider_tokens where provider_id = $1", [id]);
+  return changed(result);
 }
 
 export async function setProviderEnabled(id: string, enabled: boolean): Promise<boolean> {
@@ -178,13 +183,13 @@ export async function deleteProvider(id: string): Promise<boolean> {
 }
 
 export async function saveEndpoint(providerId: string, endpoint: EndpointFields): Promise<boolean> {
-  return changed(
-    await getPool().query(
-      `insert into provider_endpoints (id, provider_id, service, method, path, body_template, active)
-       values ($1, $2, $3, $4, $5, $6, $7)
+  const pool = getPool();
+  const result = await pool.query(
+      `insert into provider_endpoints (id, provider_id, service, method, path, body_template, response_map, active)
+       values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
        on conflict (provider_id, service) do update
-         set method = excluded.method, path = excluded.path,
-             body_template = excluded.body_template, active = excluded.active`,
+         set method = excluded.method, path = excluded.path, body_template = excluded.body_template,
+             response_map = excluded.response_map, active = excluded.active`,
       [
         randomUUID(),
         providerId,
@@ -192,10 +197,12 @@ export async function saveEndpoint(providerId: string, endpoint: EndpointFields)
         endpoint.method,
         endpoint.path,
         endpoint.bodyTemplate,
+        JSON.stringify(endpoint.responseMap),
         endpoint.active,
       ],
-    ),
   );
+  await pool.query("delete from provider_tokens where provider_id = $1", [providerId]);
+  return changed(result);
 }
 
 export async function setEndpointActive(
@@ -226,11 +233,13 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
         endpoint_method: HttpMethod;
         endpoint_path: string;
         endpoint_body: string;
+        endpoint_map: ResponseMap | null;
       }
     >(
       `select p.id, p.name, p.kind, p.base_url, p.auth_type, p.auth_name, p.auth_username, p.secret_enc,
               p.enabled, p.priority, p.timeout_ms,
-              e.method as endpoint_method, e.path as endpoint_path, e.body_template as endpoint_body
+              e.method as endpoint_method, e.path as endpoint_path, e.body_template as endpoint_body,
+              e.response_map as endpoint_map
        from providers p
        join provider_endpoints e on e.provider_id = p.id and e.service = $2 and e.active
        where p.id = $1 and p.enabled`,
@@ -258,8 +267,26 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
     method: row.endpoint_method,
     path: row.endpoint_path,
     bodyTemplate: row.endpoint_body,
+    responseMap: row.endpoint_map ?? {},
     networkCodes,
   };
+}
+
+export async function getCachedToken(providerId: string): Promise<string | null> {
+  const { rows } = await getPool().query<{ token_enc: string }>(
+    "select token_enc from provider_tokens where provider_id = $1 and expires_at > now()",
+    [providerId],
+  );
+  return rows[0] ? decryptSecret(rows[0].token_enc) : null;
+}
+
+export async function saveToken(providerId: string, token: string, expiresAt: Date): Promise<void> {
+  await getPool().query(
+    `insert into provider_tokens (provider_id, token_enc, expires_at) values ($1, $2, $3)
+     on conflict (provider_id) do update
+       set token_enc = excluded.token_enc, expires_at = excluded.expires_at, updated_at = now()`,
+    [providerId, encryptSecret(token), expiresAt],
+  );
 }
 
 export async function listNetworkOptions(): Promise<NetworkOption[]> {

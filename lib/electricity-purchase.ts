@@ -21,5 +21,10 @@ export type ElectricityDisco = {
   standardDiscount: number;
 };
 
+export type MeterLookup =
+  | { status: "found"; name: string; address: string | null; balance: number | null }
+  | { status: "invalid" }
+  | { status: "unavailable" };
+
 export const electricityPrice = (amount: number, discount: number) =>
   Math.round(amount * (1 - discount / 100) * 100) / 100;

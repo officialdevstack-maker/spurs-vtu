@@ -17,22 +17,27 @@ import {
 import { formatNaira, formatNumber } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
+import { MeterCheckNote, useMeterCheck } from "@/components/dashboard/meter-check";
 
 const input =
   "h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-colors placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
 const inputOk = "border-gray-300 dark:border-white/15";
 const inputBad = "border-[#C8432B]";
+const select =
+  "h-12 w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 pr-11 text-base font-medium outline-none transition-colors hover:border-[#12343B]/50 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:border-white/15 dark:bg-[#10262B] dark:hover:border-[#F2B632]/50 dark:focus-visible:ring-[#F2B632]";
 
 export function ElectricityPurchase({
   discos,
   balance,
   cashback,
   defaultPhone,
+  canVerify,
 }: {
   discos: ElectricityDisco[];
   balance: number | null;
   cashback: number;
   defaultPhone?: string;
+  canVerify: boolean;
 }) {
   const ids = useId();
   const [pending, startTransition] = useTransition();
@@ -45,6 +50,7 @@ export function ElectricityPurchase({
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [reference, setReference] = useState(() => crypto.randomUUID());
   const [useCashback, setUseCashback] = useState(false);
+  const { check, schedule, reset, verified } = useMeterCheck(canVerify);
 
   const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
   const amount = amountText === "" ? NaN : Number(amountText);
@@ -65,7 +71,7 @@ export function ElectricityPurchase({
 
   function submit() {
     setTouched(true);
-    if (pending || amountError || meterError || phoneError || (useCashback ? shortWithCashback : short)) return;
+    if (pending || amountError || meterError || phoneError || !verified || (useCashback ? shortWithCashback : short)) return;
     startTransition(async () => {
       try {
         const outcome = await purchaseElectricity({
@@ -83,6 +89,7 @@ export function ElectricityPurchase({
           setMeter("");
           setAmountText("");
           setTouched(false);
+          reset();
           toast.success("Electricity purchase complete.");
         } else if (!outcome.ok) {
           toast.error("Purchase failed.");
@@ -103,32 +110,29 @@ export function ElectricityPurchase({
         noValidate
         className="space-y-6"
       >
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">Distribution company</legend>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {discos.map((item) => {
-              const active = item.id === disco.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setDiscoId(item.id)}
-                  className={`rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${
-                    active
-                      ? "border-[#12343B] bg-white ring-1 ring-[#12343B] dark:border-[#F2B632] dark:bg-white/10 dark:ring-[#F2B632]"
-                      : "border-gray-200 bg-white hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold leading-snug">{item.name}</span>
-                  <span className="mt-1 block text-xs text-gray-600 dark:text-[#9FB3B7]">
-                    {item.discount > 0 ? `${item.discount}% off` : "No discount"}
-                  </span>
-                </button>
-              );
-            })}
+        <div>
+          <label htmlFor={`${ids}-disco`} className="mb-2 block text-sm font-medium">Distribution company</label>
+          <div className="relative">
+            <select
+              id={`${ids}-disco`}
+              value={disco.id}
+              onChange={(event) => {
+                setDiscoId(event.target.value);
+                schedule(event.target.value, meterType, meter);
+              }}
+              className={select}
+            >
+              {discos.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} — {item.discount > 0 ? `${item.discount}% off` : "No discount"}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-gray-500 dark:text-[#9FB3B7]" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="size-4"><path fillRule="evenodd" d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+            </span>
           </div>
-        </fieldset>
+        </div>
 
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Meter type</legend>
@@ -138,7 +142,10 @@ export function ElectricityPurchase({
                 key={type.id}
                 type="button"
                 aria-pressed={meterType === type.id}
-                onClick={() => setMeterType(type.id)}
+                onClick={() => {
+                  setMeterType(type.id);
+                  schedule(discoId, type.id, meter);
+                }}
                 className={`h-10 rounded-lg px-5 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${
                   meterType === type.id
                     ? "bg-[#12343B] text-white dark:bg-[#F2B632] dark:text-[#12343B]"
@@ -159,10 +166,15 @@ export function ElectricityPurchase({
             autoComplete="off"
             placeholder="e.g. 4512000987"
             value={meter}
-            onChange={(e) => setMeter(e.target.value.replace(/\D/g, "").slice(0, 13))}
+            onChange={(e) => {
+              const next = e.target.value.replace(/\D/g, "").slice(0, 13);
+              setMeter(next);
+              schedule(discoId, meterType, next);
+            }}
             aria-invalid={touched && !!meterError}
             className={`${input} tabular-nums ${touched && meterError ? inputBad : inputOk}`}
           />
+          <MeterCheckNote check={check} onRetry={() => schedule(discoId, meterType, meter)} />
           {touched && meterError && <p role="alert" className="mt-2 text-sm text-[#C8432B]">{meterError}</p>}
         </div>
 
