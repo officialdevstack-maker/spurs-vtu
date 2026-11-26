@@ -57,6 +57,11 @@ export async function processBroadcast(id: string, budgetMs = 25_000): Promise<v
       for (const channel of ["email", "sms"] as const) {
         if (!job.channels.includes(channel)) continue;
         await runPool(chunk, CONCURRENCY, async (r) => {
+          const optedIn = channel === "email" ? r.notifyEmail : r.notifySms;
+          if (!r.notifyPromotions || !optedIn) {
+            tally(results, channel, "skipped");
+            return;
+          }
           tally(results, channel, await deliver(channel, r, renderTemplate(job.title, r), renderTemplate(job.body, r)));
         });
       }

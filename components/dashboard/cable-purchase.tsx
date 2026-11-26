@@ -20,12 +20,16 @@ export function CablePurchase({
   cashback,
   canVerify,
   defaultPhone,
+  defaultUseCashback,
+  confirmPurchases,
 }: {
   operators: CableCatalogOperator[];
   balance: number | null;
   cashback: number;
   canVerify: boolean;
   defaultPhone?: string;
+  defaultUseCashback: boolean;
+  confirmPurchases: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -33,7 +37,7 @@ export function CablePurchase({
   const [planId, setPlanId] = useState("");
   const [smartcard, setSmartcard] = useState("");
   const [phone, setPhone] = useState(normalizePhone(defaultPhone ?? ""));
-  const [useCashback, setUseCashback] = useState(false);
+  const [useCashback, setUseCashback] = useState(defaultUseCashback);
   const [error, setError] = useState("");
   const [check, setCheck] = useState<Check>(IDLE);
   const reference = useRef<string>(crypto.randomUUID());
@@ -70,6 +74,7 @@ export function CablePurchase({
 
   function submit() {
     if (!plan || pending) return;
+    if (confirmPurchases && !window.confirm(`Buy ${plan.name} for ${formatNaira(walletPart)}?`)) return;
     setError("");
     startTransition(async () => {
       const result = await purchaseCable({ planId: plan.id, smartcard, phone, reference: reference.current, useCashback });

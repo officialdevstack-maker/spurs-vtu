@@ -27,11 +27,15 @@ export function DataPurchase({
   balance,
   cashback,
   defaultPhone,
+  defaultUseCashback,
+  confirmPurchases,
 }: {
   networks: CatalogNetwork[];
   balance: number | null;
   cashback: number;
   defaultPhone?: string;
+  defaultUseCashback: boolean;
+  confirmPurchases: boolean;
 }) {
   const router = useRouter();
   const base = useId();
@@ -45,7 +49,7 @@ export function DataPurchase({
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const [useCashback, setUseCashback] = useState(false);
+  const [useCashback, setUseCashback] = useState(defaultUseCashback);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -83,16 +87,24 @@ export function DataPurchase({
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    setReference(crypto.randomUUID());
+    const nextReference = crypto.randomUUID();
+    setReference(nextReference);
     setResult(null);
-    setConfirming(true);
+    if (confirmPurchases) setConfirming(true);
+    else pay(nextReference);
   }
 
-  function pay() {
+  function pay(referenceOverride?: string) {
     if (pending || !selected) return;
     startTransition(async () => {
       try {
-        setResult(await purchaseData({ planId: selected.id, phone, reference, skipNetworkCheck: skipCheck, useCashback }));
+        setResult(await purchaseData({
+          planId: selected.id,
+          phone,
+          reference: referenceOverride ?? reference,
+          skipNetworkCheck: skipCheck,
+          useCashback,
+        }));
       } catch (cause) {
         console.error("[data-purchase] Request failed", cause);
         setResult({
@@ -300,7 +312,7 @@ export function DataPurchase({
                 <button type="button" onClick={close} disabled={pending} className={btnGhost}>
                   Cancel
                 </button>
-                <button type="button" onClick={pay} disabled={pending} className={btnPrimary}>
+                <button type="button"                 onClick={() => pay()} disabled={pending} className={btnPrimary}>
                   {pending ? "Buying…" : `Pay ${formatNaira(selected.price)}`}
                 </button>
               </div>

@@ -32,12 +32,16 @@ export function ElectricityPurchase({
   cashback,
   defaultPhone,
   canVerify,
+  defaultUseCashback,
+  confirmPurchases,
 }: {
   discos: ElectricityDisco[];
   balance: number | null;
   cashback: number;
   defaultPhone?: string;
   canVerify: boolean;
+  defaultUseCashback: boolean;
+  confirmPurchases: boolean;
 }) {
   const ids = useId();
   const [pending, startTransition] = useTransition();
@@ -49,7 +53,7 @@ export function ElectricityPurchase({
   const [touched, setTouched] = useState(false);
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [reference, setReference] = useState(() => crypto.randomUUID());
-  const [useCashback, setUseCashback] = useState(false);
+  const [useCashback, setUseCashback] = useState(defaultUseCashback);
   const { check, schedule, reset, verified } = useMeterCheck(canVerify);
 
   const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
@@ -72,6 +76,7 @@ export function ElectricityPurchase({
   function submit() {
     setTouched(true);
     if (pending || amountError || meterError || phoneError || !verified || (useCashback ? shortWithCashback : short)) return;
+    if (confirmPurchases && !window.confirm(`Buy ₦${formatNumber(amount)} electricity for ${formatNaira(walletPart)}?`)) return;
     startTransition(async () => {
       try {
         const outcome = await purchaseElectricity({

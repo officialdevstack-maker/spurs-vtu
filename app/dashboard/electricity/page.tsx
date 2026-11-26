@@ -8,6 +8,7 @@ import { getElectricityCatalog, hasElectricityVerifyProvider } from "@/lib/db/el
 import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
+import { getProfileSettings } from "@/lib/db/profile";
 
 export const metadata: Metadata = { title: "Buy electricity | Spur VTU" };
 export const instant = false;
@@ -16,12 +17,13 @@ export default async function BuyElectricityPage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [discos, balance, pkg, cashback, canVerify] = await Promise.all([
+  const [discos, balance, pkg, cashback, canVerify, settings] = await Promise.all([
     getElectricityCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
     hasElectricityVerifyProvider(),
+    getProfileSettings(user.sub),
   ]);
 
   return (
@@ -52,6 +54,8 @@ export default async function BuyElectricityPage() {
           cashback={cashback}
           canVerify={canVerify}
           defaultPhone={customer?.phone ?? undefined}
+          defaultUseCashback={settings.useCashbackDefault}
+          confirmPurchases={settings.confirmPurchases}
         />
       )}
     </div>

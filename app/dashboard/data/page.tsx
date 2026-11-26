@@ -7,6 +7,7 @@ import { getCustomerForPurchase, getDataCatalog } from "@/lib/db/data-purchase";
 import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
+import { getProfileSettings } from "@/lib/db/profile";
 
 export const metadata: Metadata = { title: "Buy data | Spur VTU" };
 export const instant = false;
@@ -15,11 +16,12 @@ export default async function BuyDataPage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [networks, balance, pkg, cashback] = await Promise.all([
+  const [networks, balance, pkg, cashback, settings] = await Promise.all([
     getDataCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
+    getProfileSettings(user.sub),
   ]);
 
   return (
@@ -46,7 +48,14 @@ export default async function BuyDataPage() {
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Please check back soon.</p>
         </div>
       ) : (
-        <DataPurchase networks={networks} balance={balance} cashback={cashback} defaultPhone={customer?.phone ?? undefined} />
+        <DataPurchase
+          networks={networks}
+          balance={balance}
+          cashback={cashback}
+          defaultPhone={customer?.phone ?? undefined}
+          defaultUseCashback={settings.useCashbackDefault}
+          confirmPurchases={settings.confirmPurchases}
+        />
       )}
     </div>
   );

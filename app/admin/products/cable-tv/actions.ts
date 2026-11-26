@@ -47,22 +47,28 @@ export async function createOperator(name: string): Promise<ActionResult> {
 }
 
 export async function renameOperator(operator: string, name: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const label = clean(name);
   if (!operator || !label || label.length > 40) return fail("Enter an operator name up to 40 characters.");
-  return run(() => db.renameOperator(operator, label));
+  return run(() => db.renameOperator(operator, label), {
+    log: () => recordAudit(admin, { action: "cable.operator.rename", target: operator, summary: `Renamed cable operator to ${label}` }),
+  });
 }
 
 export async function setOperatorEnabled(operator: string, enabled: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!operator || typeof enabled !== "boolean") return BAD_INPUT;
-  return run(() => db.setOperatorEnabled(operator, enabled));
+  return run(() => db.setOperatorEnabled(operator, enabled), {
+    log: () => recordAudit(admin, { action: "cable.operator.toggle", target: operator, summary: `${enabled ? "Enabled" : "Disabled"} cable operator ${operator}`, meta: { enabled } }),
+  });
 }
 
 export async function removeOperator(operator: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!operator) return BAD_INPUT;
-  return run(() => db.deleteOperator(operator));
+  return run(() => db.deleteOperator(operator), {
+    log: () => recordAudit(admin, { action: "cable.operator.delete", target: operator, summary: `Deleted cable operator ${operator}` }),
+  });
 }
 
 function parsePackagePrices(input: unknown) {
@@ -140,20 +146,27 @@ export async function createPlan(operator: string, input: CablePlanFields): Prom
 }
 
 export async function updatePlan(operator: string, planId: string, input: CablePlanFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!operator || !planId || !plan) return fail("Check the bouquet details and try again.");
-  return run(() => db.updateCablePlan(operator, planId, plan), { fk: PLAN_FK });
+  return run(() => db.updateCablePlan(operator, planId, plan), {
+    fk: PLAN_FK,
+    log: () => recordAudit(admin, { action: "cable.plan.update", target: planId, summary: `Updated cable plan on ${operator}`, meta: { operator, name: plan.name, cost: plan.cost, price: plan.price, providerId: plan.providerId, active: plan.active } }),
+  });
 }
 
 export async function setPlanActive(operator: string, planId: string, active: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!operator || !planId || typeof active !== "boolean") return BAD_INPUT;
-  return run(() => db.setCablePlanActive(operator, planId, active));
+  return run(() => db.setCablePlanActive(operator, planId, active), {
+    log: () => recordAudit(admin, { action: "cable.plan.toggle", target: planId, summary: `${active ? "Activated" : "Deactivated"} a cable plan`, meta: { operator, active } }),
+  });
 }
 
 export async function removePlan(operator: string, planId: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!operator || !planId) return BAD_INPUT;
-  return run(() => db.deleteCablePlan(operator, planId));
+  return run(() => db.deleteCablePlan(operator, planId), {
+    log: () => recordAudit(admin, { action: "cable.plan.delete", target: planId, summary: `Deleted a cable plan on ${operator}`, meta: { operator } }),
+  });
 }

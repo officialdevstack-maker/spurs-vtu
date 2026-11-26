@@ -114,13 +114,15 @@ export async function updateDisco(id: string, input: DiscoFields): Promise<Actio
 }
 
 export async function setDiscoEnabled(id: string, enabled: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!id || typeof enabled !== "boolean") return BAD_INPUT;
-  return run(() => db.setDiscoEnabled(id, enabled));
+  return run(() => db.setDiscoEnabled(id, enabled), undefined, () =>
+    recordAudit(admin, { action: "electricity.disco.toggle", target: id, summary: `${enabled ? "Enabled" : "Disabled"} disco ${id}`, meta: { enabled } }));
 }
 
 export async function removeDisco(id: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!id) return BAD_INPUT;
-  return run(() => db.deleteDisco(id));
+  return run(() => db.deleteDisco(id), undefined, () =>
+    recordAudit(admin, { action: "electricity.disco.delete", target: id, summary: `Deleted disco ${id}` }));
 }

@@ -36,7 +36,17 @@ export type WelcomePopup = {
   ctaHref: string;
   version: number;
 };
-export type Recipient = { id: string; name: string | null; username: string | null; email: string | null; phone: string | null };
+export type Recipient = {
+  id: string;
+  name: string | null;
+  username: string | null;
+  email: string | null;
+  phone: string | null;
+  notifyEmail: boolean;
+  notifySms: boolean;
+  notifyPush: boolean;
+  notifyPromotions: boolean;
+};
 export type ChannelResult = { sent: number; failed: number; skipped: number };
 export type BroadcastResults = Partial<Record<Channel, ChannelResult>>;
 export type BroadcastRecord = {

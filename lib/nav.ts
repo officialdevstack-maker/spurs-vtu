@@ -7,6 +7,7 @@ import {
   Smartphone,
   Tv,
   Wallet,
+  User,
   Wifi,
   Zap,
   Users,
@@ -34,6 +35,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
       { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
+      { label: "Profile", href: "/dashboard/profile", icon: User },
     ],
   },
   {

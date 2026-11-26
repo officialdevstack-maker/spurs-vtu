@@ -28,11 +28,15 @@ export function AirtimePurchase({
   balance,
   cashback,
   defaultPhone,
+  defaultUseCashback,
+  confirmPurchases,
 }: {
   networks: AirtimeCatalogNetwork[];
   balance: number | null;
   cashback: number;
   defaultPhone?: string;
+  defaultUseCashback: boolean;
+  confirmPurchases: boolean;
 }) {
   const router = useRouter();
   const base = useId();
@@ -46,7 +50,7 @@ export function AirtimePurchase({
   const [reference, setReference] = useState("");
   const [result, setResult] = useState<PurchaseResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const [useCashback, setUseCashback] = useState(false);
+  const [useCashback, setUseCashback] = useState(defaultUseCashback);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -102,12 +106,14 @@ export function AirtimePurchase({
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    setReference(crypto.randomUUID());
+    const nextReference = crypto.randomUUID();
+    setReference(nextReference);
     setResult(null);
-    setConfirming(true);
+    if (confirmPurchases) setConfirming(true);
+    else pay(nextReference);
   }
 
-  function pay() {
+  function pay(referenceOverride?: string) {
     if (pending || !network || !activeType || !range) return;
     startTransition(async () => {
       try {
@@ -117,7 +123,7 @@ export function AirtimePurchase({
             typeId: activeType.id,
             amount: amountValue,
             phone,
-            reference,
+            reference: referenceOverride ?? reference,
             skipNetworkCheck: skipCheck,
             useCashback,
           }),
@@ -354,7 +360,7 @@ export function AirtimePurchase({
                 <button type="button" onClick={close} disabled={pending} className={btnGhost}>
                   Cancel
                 </button>
-                <button type="button" onClick={pay} disabled={pending} className={btnPrimary}>
+                <button type="button"                 onClick={() => pay()} disabled={pending} className={btnPrimary}>
                   {pending ? "Buying…" : `Pay ${formatNaira(price)}`}
                 </button>
               </div>

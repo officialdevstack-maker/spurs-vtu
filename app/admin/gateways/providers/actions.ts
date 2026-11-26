@@ -207,22 +207,24 @@ export async function setEndpointActive(
   endpointId: string,
   active: boolean,
 ): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   if (!providerId || !endpointId || typeof active !== "boolean") return BAD_INPUT;
-  return run(() => db.setEndpointActive(providerId, endpointId, active));
+  return run(() => db.setEndpointActive(providerId, endpointId, active), undefined, () =>
+    recordAudit(admin, { action: "provider.endpoint.toggle", target: providerId, summary: `${active ? "Activated" : "Deactivated"} an endpoint`, meta: { endpointId, active } }));
 }
 
 export async function removeEndpoint(providerId: string, endpointId: string): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   if (!providerId || !endpointId) return BAD_INPUT;
-  return run(() => db.deleteEndpoint(providerId, endpointId));
+  return run(() => db.deleteEndpoint(providerId, endpointId), undefined, () =>
+    recordAudit(admin, { action: "provider.endpoint.delete", target: providerId, summary: "Deleted an endpoint", meta: { endpointId } }));
 }
 
 export async function saveNetworkCodes(
   providerId: string,
   input: { networkId: string; code: string }[],
 ): Promise<ActionResult> {
-  await requirePermission("gateways.manage");
+  const admin = await requirePermission("gateways.manage");
   if (!providerId || !Array.isArray(input) || input.length > 100) return BAD_INPUT;
 
   const seen = new Set<string>();
@@ -239,5 +241,6 @@ export async function saveNetworkCodes(
     }
     codes.push({ networkId, code });
   }
-  return run(() => db.saveNetworkCodes(providerId, codes));
+  return run(() => db.saveNetworkCodes(providerId, codes), undefined, () =>
+    recordAudit(admin, { action: "provider.network_codes.save", target: providerId, summary: "Saved network codes", meta: { networks: codes.map((c) => c.networkId) } }));
 }

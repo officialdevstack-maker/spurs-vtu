@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const display = Familjen_Grotesk({
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className={`${display.variable} ${body.variable} ${geistMono.variable} min-h-full flex flex-col font-sans antialiased`}>
         {children}
         <Toaster position="top-right" richColors closeButton theme="system" />

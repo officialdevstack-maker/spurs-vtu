@@ -8,6 +8,7 @@ import { getCableCatalog, hasCableVerifyProvider } from "@/lib/db/cable";
 import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 import { getCashbackBalance } from "@/lib/cashback";
+import { getProfileSettings } from "@/lib/db/profile";
 
 export const metadata: Metadata = { title: "Cable TV | Spur VTU" };
 export const instant = false;
@@ -16,12 +17,13 @@ export default async function BuyCablePage() {
   await connection();
   const user = await requireSpursUser();
   const customer = await getCustomerForPurchase(user.sub);
-  const [operators, balance, pkg, cashback, canVerify] = await Promise.all([
+  const [operators, balance, pkg, cashback, canVerify, settings] = await Promise.all([
     getCableCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
     getCustomerPackage(user.sub),
     getCashbackBalance(user.sub),
     hasCableVerifyProvider(),
+    getProfileSettings(user.sub),
   ]);
 
   return (
@@ -46,7 +48,15 @@ export default async function BuyCablePage() {
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Please check back soon.</p>
         </div>
       ) : (
-        <CablePurchase operators={operators} balance={balance} cashback={cashback} canVerify={canVerify} defaultPhone={customer?.phone ?? undefined} />
+        <CablePurchase
+          operators={operators}
+          balance={balance}
+          cashback={cashback}
+          canVerify={canVerify}
+          defaultPhone={customer?.phone ?? undefined}
+          defaultUseCashback={settings.useCashbackDefault}
+          confirmPurchases={settings.confirmPurchases}
+        />
       )}
     </div>
   );

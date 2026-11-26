@@ -55,26 +55,32 @@ export async function createNetwork(name: string): Promise<ActionResult> {
 }
 
 export async function renameNetwork(network: string, name: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const label = clean(name);
   if (!network || !label || label.length > 40) return fail("Enter a network name up to 40 characters.");
-  return run(() => db.renameNetwork(network, label));
+  return run(() => db.renameNetwork(network, label), {
+    log: () => recordAudit(admin, { action: "airtime.network.rename", target: network, summary: `Renamed network to ${label}` }),
+  });
 }
 
 export async function setNetworkEnabled(network: string, enabled: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || typeof enabled !== "boolean") return BAD_INPUT;
-  return run(() => db.setNetworkEnabled(network, enabled));
+  return run(() => db.setNetworkEnabled(network, enabled), {
+    log: () => recordAudit(admin, { action: "airtime.network.toggle", target: network, summary: `${enabled ? "Enabled" : "Disabled"} network ${network}`, meta: { enabled } }),
+  });
 }
 
 export async function removeNetwork(network: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network) return BAD_INPUT;
-  return run(() => db.deleteNetwork(network));
+  return run(() => db.deleteNetwork(network), {
+    log: () => recordAudit(admin, { action: "airtime.network.delete", target: network, summary: `Deleted network ${network}` }),
+  });
 }
 
 export async function createDataType(label: string, service: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const name = clean(label);
   const slug = slugify(name);
   if (!validService(service)) return fail("Choose airtime or data.");
@@ -82,21 +88,27 @@ export async function createDataType(label: string, service: string): Promise<Ac
     return fail("Enter a type name using letters or numbers, up to 20 characters.");
   }
   const id = `${service}-${slug}`;
-  return run(() => db.createDataType(id, name, service), { id });
+  return run(() => db.createDataType(id, name, service), {
+    id,
+    log: () => recordAudit(admin, { action: "airtime.type.create", target: id, summary: `Created ${service} type ${name}` }),
+  });
 }
 
 export async function renameDataType(type: string, label: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const name = clean(label);
   if (!type || !name || name.length > 20) return fail("Enter a type name up to 20 characters.");
-  return run(() => db.renameDataType(type, name));
+  return run(() => db.renameDataType(type, name), {
+    log: () => recordAudit(admin, { action: "airtime.type.rename", target: type, summary: `Renamed type to ${name}` }),
+  });
 }
 
 export async function removeDataType(type: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!type) return BAD_INPUT;
   return run(() => db.deleteDataType(type), {
     fk: "Plans or discounts still use this type. Remove or change those first.",
+    log: () => recordAudit(admin, { action: "airtime.type.delete", target: type, summary: `Deleted type ${type}` }),
   });
 }
 
@@ -105,10 +117,11 @@ export async function setNetworkTypeEnabled(
   type: string,
   enabled: boolean,
 ): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || !type || typeof enabled !== "boolean") return BAD_INPUT;
   return run(() => db.setNetworkTypeEnabled(network, type, enabled), {
     fk: "That network or type no longer exists. Refresh the page.",
+    log: () => recordAudit(admin, { action: "airtime.network_type.toggle", target: network, summary: `${enabled ? "Enabled" : "Disabled"} ${type} on ${network}`, meta: { type, enabled } }),
   });
 }
 
@@ -191,22 +204,29 @@ export async function createPlan(network: string, input: PlanFields): Promise<Ac
 }
 
 export async function updatePlan(network: string, planId: string, input: PlanFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!network || !planId || !plan) return fail("Check the plan details and try again.");
-  return run(() => db.updatePlan(network, planId, plan), { fk: PLAN_FK });
+  return run(() => db.updatePlan(network, planId, plan), {
+    fk: PLAN_FK,
+    log: () => recordAudit(admin, { action: "airtime.plan.update", target: planId, summary: `Updated data plan on ${network}`, meta: { network, volume: plan.volume, unit: plan.unit, cost: plan.cost, price: plan.price, providerId: plan.providerId, active: plan.active } }),
+  });
 }
 
 export async function setPlanActive(network: string, planId: string, active: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || !planId || typeof active !== "boolean") return BAD_INPUT;
-  return run(() => db.setPlanActive(network, planId, active));
+  return run(() => db.setPlanActive(network, planId, active), {
+    log: () => recordAudit(admin, { action: "airtime.plan.toggle", target: planId, summary: `${active ? "Activated" : "Deactivated"} a data plan`, meta: { network, active } }),
+  });
 }
 
 export async function removePlan(network: string, planId: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || !planId) return BAD_INPUT;
-  return run(() => db.deletePlan(network, planId));
+  return run(() => db.deletePlan(network, planId), {
+    log: () => recordAudit(admin, { action: "airtime.plan.delete", target: planId, summary: `Deleted a data plan on ${network}`, meta: { network } }),
+  });
 }
 
 function parseDiscount(input: unknown): DiscountFields | null {
@@ -258,27 +278,37 @@ const DISCOUNT_BAD = fail("Check the discount details and try again.");
 const DISCOUNT_FK = "That network, type, or provider no longer exists. Refresh the page.";
 
 export async function createDiscount(network: string, input: DiscountFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const discount = parseDiscount(input);
   if (!network || !discount) return DISCOUNT_BAD;
-  return run(() => db.createDiscount(network, discount), { fk: DISCOUNT_FK });
+  return run(() => db.createDiscount(network, discount), {
+    fk: DISCOUNT_FK,
+    log: () => recordAudit(admin, { action: "airtime.discount.create", target: network, summary: `Created airtime discount on ${network}`, meta: { type: discount.type, min: discount.min, max: discount.max, discount: discount.discount, providerDiscount: discount.providerDiscount } }),
+  });
 }
 
 export async function updateDiscount(network: string, id: string, input: DiscountFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const discount = parseDiscount(input);
   if (!network || !id || !discount) return DISCOUNT_BAD;
-  return run(() => db.updateDiscount(network, id, discount), { fk: DISCOUNT_FK });
+  return run(() => db.updateDiscount(network, id, discount), {
+    fk: DISCOUNT_FK,
+    log: () => recordAudit(admin, { action: "airtime.discount.update", target: id, summary: `Updated airtime discount on ${network}`, meta: { type: discount.type, min: discount.min, max: discount.max, discount: discount.discount, providerDiscount: discount.providerDiscount, active: discount.active } }),
+  });
 }
 
 export async function setDiscountActive(network: string, id: string, active: boolean): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || !id || typeof active !== "boolean") return BAD_INPUT;
-  return run(() => db.setDiscountActive(network, id, active));
+  return run(() => db.setDiscountActive(network, id, active), {
+    log: () => recordAudit(admin, { action: "airtime.discount.toggle", target: id, summary: `${active ? "Activated" : "Deactivated"} an airtime discount`, meta: { network, active } }),
+  });
 }
 
 export async function removeDiscount(network: string, id: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   if (!network || !id) return BAD_INPUT;
-  return run(() => db.deleteDiscount(network, id));
+  return run(() => db.deleteDiscount(network, id), {
+    log: () => recordAudit(admin, { action: "airtime.discount.delete", target: id, summary: `Deleted an airtime discount on ${network}`, meta: { network } }),
+  });
 }

@@ -149,7 +149,13 @@ export async function nextAudienceChunk(
   limit: number,
 ): Promise<Recipient[]> {
   const { rows } = await getPool().query<Recipient>(
-    `select c.id, c.name, c.username, c.email, c.phone from customers c
+    `select c.id, c.name, c.username, c.email, c.phone,
+            coalesce(s.notify_email, true) as "notifyEmail",
+            coalesce(s.notify_sms, true) as "notifySms",
+            coalesce(s.notify_push, true) as "notifyPush",
+            coalesce(s.notify_promotions, true) as "notifyPromotions"
+     from customers c
+     left join customer_settings s on s.customer_id = c.id
      where ${AUDIENCE_WHERE} and ($3::text is null or c.id > $3)
      order by c.id limit $4`,
     [audience, packageId, cursor, limit],
