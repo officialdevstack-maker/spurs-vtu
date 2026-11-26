@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/admin/auth";
 import { CABLE_PATH } from "@/lib/admin/cable";
 import * as db from "@/lib/db/cable";
 import type { CablePlanFields } from "@/lib/db/cable";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -24,9 +25,10 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
   return fail("Something went wrong saving that. Try again.");
 }
 
-async function run(fn: () => Promise<boolean>, options: { id?: string; fk?: string } = {}): Promise<ActionResult> {
+async function run(fn: () => Promise<boolean>, options: { id?: string; fk?: string; log?: () => Promise<void> } = {}): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await options.log?.();
     revalidatePath(CABLE_PATH);
     return { ok: true, id: options.id };
   } catch (error) {
@@ -35,13 +37,13 @@ async function run(fn: () => Promise<boolean>, options: { id?: string; fk?: stri
 }
 
 export async function createOperator(name: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const label = clean(name);
   const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (!label || label.length > 40 || !id) {
     return fail("Enter an operator name using letters or numbers, up to 40 characters.");
   }
-  return run(() => db.createOperator(id, label), { id });
+  return run(() => db.createOperator(id, label), { id, log: () => recordAudit(admin, { action: "cable.operator.create", target: id, summary: `Created cable operator ${label}` }) });
 }
 
 export async function renameOperator(operator: string, name: string): Promise<ActionResult> {
@@ -131,10 +133,10 @@ function parsePlan(input: unknown): CablePlanFields | null {
 const PLAN_FK = "That operator, package or provider no longer exists. Refresh the page.";
 
 export async function createPlan(operator: string, input: CablePlanFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!operator || !plan) return fail("Check the bouquet details and try again.");
-  return run(() => db.createCablePlan(operator, plan), { fk: PLAN_FK });
+  return run(() => db.createCablePlan(operator, plan), { fk: PLAN_FK, log: () => recordAudit(admin, { action: "cable.plan.create", target: operator, summary: `Created a cable plan for ${operator}`, meta: { name: plan.name, cost: plan.cost, price: plan.price } }) });
 }
 
 export async function updatePlan(operator: string, planId: string, input: CablePlanFields): Promise<ActionResult> {

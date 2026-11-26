@@ -37,7 +37,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       <header>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Audit log</h1>
         <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
-          Who changed what, and when. Entries can't be edited or deleted.
+          Who changed what, and when. Entries can&apos;t be edited or deleted.
         </p>
       </header>
 

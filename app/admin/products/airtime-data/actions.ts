@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/admin/auth";
 import { AIRTIME_DATA_PATH, SERVICES, slugify, type DataUnit, type PackagePrice, type Service } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
+import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -31,10 +32,11 @@ function dbError(error: unknown, fkMessage: string): ActionResult {
 
 async function run(
   fn: () => Promise<boolean>,
-  options: { id?: string; fk?: string } = {},
+  options: { id?: string; fk?: string; log?: () => Promise<void> } = {},
 ): Promise<ActionResult> {
   try {
     if (!(await fn())) return NOT_FOUND;
+    await options.log?.();
     revalidatePath(AIRTIME_DATA_PATH);
     return { ok: true, id: options.id };
   } catch (error) {
@@ -43,13 +45,13 @@ async function run(
 }
 
 export async function createNetwork(name: string): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const label = clean(name);
   const id = slugify(label);
   if (!label || label.length > 40 || !id) {
     return fail("Enter a network name using letters or numbers, up to 40 characters.");
   }
-  return run(() => db.createNetwork(id, label), { id });
+  return run(() => db.createNetwork(id, label), { id, log: () => recordAudit(admin, { action: "airtime.network.create", target: id, summary: `Created network ${label}` }) });
 }
 
 export async function renameNetwork(network: string, name: string): Promise<ActionResult> {
@@ -182,10 +184,10 @@ function parsePackagePrices(input: unknown): PackagePrice[] | null {
 }
 
 export async function createPlan(network: string, input: PlanFields): Promise<ActionResult> {
-  await requirePermission("products.manage");
+  const admin = await requirePermission("products.manage");
   const plan = parsePlan(input);
   if (!network || !plan) return fail("Check the plan details and try again.");
-  return run(() => db.createPlan(network, plan), { fk: PLAN_FK });
+  return run(() => db.createPlan(network, plan), { fk: PLAN_FK, log: () => recordAudit(admin, { action: "airtime.plan.create", target: network, summary: `Created a data plan for ${network}`, meta: { volume: plan.volume, unit: plan.unit, providerId: plan.providerId } }) });
 }
 
 export async function updatePlan(network: string, planId: string, input: PlanFields): Promise<ActionResult> {
