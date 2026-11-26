@@ -30,7 +30,7 @@ export async function changeCashbackBalance(input: {
   amountKobo: number;
   reference: string;
   direction: "credit" | "debit";
-  source: "earn" | "spend" | "restore";
+  source: "earn" | "spend" | "restore" | "referral";
   service?: string | null;
 }): Promise<boolean> {
   if (!Number.isSafeInteger(input.amountKobo) || input.amountKobo <= 0) {

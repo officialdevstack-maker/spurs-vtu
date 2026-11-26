@@ -8,7 +8,7 @@ import {
 } from "@/lib/db/settlement";
 import { markRefunded } from "@/lib/db/transactions";
 import { refundPurchase } from "@/lib/payment";
-import { awardCashback } from "@/lib/cashback";
+import { onPurchaseSuccess } from "@/lib/rewards";
 import type { WebhookResult } from "@/lib/admin/webhooks";
 
 type RefundState = "refunded" | "needed" | "none";
@@ -45,7 +45,7 @@ export async function settleFromWebhook(input: {
 
   if (settled) {
     if (outcome === "failed") await refundIfNeeded(settled);
-    if (outcome === "success") await awardCashback(reference);
+    if (outcome === "success") await onPurchaseSuccess(reference);
     return "applied";
   }
 

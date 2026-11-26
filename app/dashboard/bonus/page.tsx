@@ -10,7 +10,7 @@ import { CASHBACK_SERVICES } from "@/lib/admin/cashback";
 export const metadata: Metadata = { title: "Cashback | Spur VTU" };
 export const instant = false;
 
-const SOURCE_LABEL = { earn: "Earned", spend: "Spent on a purchase", restore: "Returned after a refund" } as const;
+const SOURCE_LABEL = { earn: "Earned", spend: "Spent on a purchase", restore: "Returned after a refund", referral: "Referral reward" } as const;
 
 export default async function CashbackPage() {
   await connection();

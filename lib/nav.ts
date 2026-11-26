@@ -9,6 +9,7 @@ import {
   Wallet,
   Wifi,
   Zap,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
@@ -54,6 +55,7 @@ export const NAV: NavGroup[] = [
       { label: "Transactions", href: "/dashboard/transactions", icon: Receipt },
       { label: "Packages", href: "/dashboard/packages", icon: Package },
       { label: "Cashback", href: "/dashboard/bonus", icon: Gift },
+      { label: "Refer & earn", href: "/dashboard/referrals", icon: Users },
     ],
   },
 ];

@@ -18,7 +18,7 @@ import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
 import { getNairaBalance } from "@/lib/wallet";
 import { quoteCharge, takePayment, refundAndMark } from "@/lib/payment";
-import { awardCashback } from "@/lib/cashback";
+import { onPurchaseSuccess } from "@/lib/rewards";
 import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
 import { firstName } from "@/lib/admin/purchase-templates";
 
@@ -161,7 +161,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
 
   if (outcome === "success") {
     await finishTransaction(reference, "success", { response });
-    await awardCashback(reference);
+    await onPurchaseSuccess(reference);
     revalidatePath("/dashboard");
     const tokenNote = token ? ` Token: ${token}` : type.id === "prepaid" ? " Your token will be sent to your phone." : "";
     return { ok: true, status: "success", message: await purchaseMessage("electricity", "success", { ...vars, token_note: tokenNote }) };

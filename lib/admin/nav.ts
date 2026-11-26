@@ -31,6 +31,7 @@ export const ADMIN_NAV: NavGroup[] = [
           { label: "Cable TV", href: "/admin/products/cable-tv", permission: "products.view" },
           { label: "Electricity", href: "/admin/products/electricity", permission: "products.view" },
           { label: "Cashback", href: "/admin/products/cashback", permission: "products.view" },
+          { label: "Referrals", href: "/admin/products/referrals", permission: "products.view" },
           { label: "Exam", href: "/admin/products/exam", permission: "products.view" },
         ],
       },

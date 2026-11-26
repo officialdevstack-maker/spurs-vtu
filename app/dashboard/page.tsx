@@ -18,6 +18,8 @@ import { WelcomeModal } from "@/components/dashboard/welcome-modal";
 import { renderTemplate } from "@/lib/admin/announcements";
 import { getUnseenWelcome } from "@/lib/db/announcements";
 import { getCashbackBalance } from "@/lib/cashback";
+import { cookies } from "next/headers";
+import { ReferralClaim } from "@/components/dashboard/referral-claim";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -25,6 +27,7 @@ export const instant = false;
 async function DashboardContent() {
   await connection();
   const [data, user] = await Promise.all([getDashboardData(), getSpursUser()]);
+  const hasReferralCookie = (await cookies()).has("ref");
   const username = user && "username" in user && typeof user.username === "string" ? user.username : undefined;
   const hasKycStatus = !!user && "kyc_status" in user;
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
@@ -45,6 +48,7 @@ async function DashboardContent() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
+      {hasReferralCookie && <ReferralClaim />}
       {welcome && (
         <WelcomeModal
           key={welcome.version}

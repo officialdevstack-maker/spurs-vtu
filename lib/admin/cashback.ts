@@ -25,6 +25,6 @@ export type CashbackEntry = {
   id: string;
   direction: "credit" | "debit";
   amount: number;
-  source: "earn" | "spend" | "restore";
+  source: "earn" | "spend" | "restore" | "referral";
   at: string;
 };
