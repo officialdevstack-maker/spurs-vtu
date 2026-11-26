@@ -39,6 +39,7 @@ export const ADMIN_NAV: NavGroup[] = [
         icon: Megaphone,
         children: [
           { label: "Welcome message", href: "/admin/announcements/welcome", permission: "announcements.manage" },
+          { label: "Templates", href: "/admin/announcements/templates", permission: "announcements.manage" },
           { label: "Broadcast", href: "/admin/announcements/broadcast", permission: "announcements.manage" },
         ],
       },

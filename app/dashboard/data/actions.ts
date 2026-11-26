@@ -18,6 +18,8 @@ import { PHONE_PATTERN, groupPhone } from "@/lib/phone";
 import { NotSentError, callProviderEndpoint } from "@/lib/providers/call";
 import { interpretProviderResponse, type Outcome } from "@/lib/providers/result";
 import { creditWallet, debitWallet, getNairaBalance } from "@/lib/wallet";
+import { purchaseMessage, refundNote } from "@/lib/purchase-messages";
+import { firstName } from "@/lib/admin/purchase-templates";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -103,6 +105,7 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
     phone,
   });
   if (!started) return fail("That purchase is already being processed. Check your history.");
+  const vars = { name: firstName(user.name), item: title, amount: formatNaira(price), recipient: groupPhone(phone) };
 
   let debited = false;
   try {
@@ -149,21 +152,17 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   if (outcome === "success") {
     await finishTransaction(reference, "success", { response });
     revalidatePath("/dashboard");
-    return { ok: true, status: "success", message: `${title} sent to ${groupPhone(phone)}.` };
+    return { ok: true, status: "success", message: await purchaseMessage("data", "success", vars) };
   }
 
   if (outcome === "failed") {
     await finishTransaction(reference, "failed", { reason: REJECTED, response });
     const refunded = await refund(user.sub, price, reference);
     revalidatePath("/dashboard");
-    return fail(
-      refunded
-        ? `${REJECTED} Your money has been returned to your wallet.`
-        : `${REJECTED} Your refund is being processed and will reach your wallet shortly.`,
-    );
+    return fail(await purchaseMessage("data", "failed", { ...vars, refund_note: refundNote(refunded) }));
   }
 
   await finishTransaction(reference, "pending", { response });
   revalidatePath("/dashboard");
-  return { ok: true, status: "pending", message: PENDING_MESSAGE };
+  return { ok: true, status: "pending", message: await purchaseMessage("data", "pending", vars) };
 }

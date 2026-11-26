@@ -3,8 +3,6 @@ import { renderTemplate, type BroadcastResults, type Channel, type Recipient } f
 import {
   claimBroadcast,
   finishBroadcast,
-  getWelcomeTemplates,
-  insertNotification,
   insertSystemNotifications,
   nextAudienceChunk,
   saveProgress,
@@ -74,19 +72,3 @@ export async function processBroadcast(id: string, budgetMs = 25_000): Promise<v
   }
 }
 
-export async function sendWelcome(recipient: Recipient): Promise<void> {
-  try {
-    const templates = (await getWelcomeTemplates()).filter((t) => t.enabled);
-    for (const t of templates) {
-      const subject = renderTemplate(t.subject, recipient);
-      const body = renderTemplate(t.body, recipient);
-      if (t.channel === "system") {
-        await insertNotification({ id: `welcome:${recipient.id}`, customerId: recipient.id, title: subject, body });
-      } else if (t.channel === "email" || t.channel === "sms") {
-        await deliver(t.channel, recipient, subject, body);
-      }
-    }
-  } catch (error) {
-    console.error("[welcome] Could not send", recipient.id, error);
-  }
-}

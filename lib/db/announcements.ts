@@ -1,57 +1,71 @@
 import "server-only";
 import { getPool } from "@/lib/db";
 import {
-  isChannel,
   type Audience,
   type BroadcastRecord,
   type BroadcastResults,
   type Channel,
   type NotificationItem,
   type Recipient,
-  type WelcomeTemplate,
+  type WelcomePopup,
 } from "@/lib/admin/announcements";
 
 const changed = (r: { rowCount: number | null }) => (r.rowCount ?? 0) > 0;
 
-export async function getWelcomeTemplates(): Promise<WelcomeTemplate[]> {
-  const { rows } = await getPool().query<{ channel: string; enabled: boolean; subject: string; body: string }>(
-    "select channel, enabled, subject, body from welcome_templates",
+type PopupRow = {
+  enabled: boolean;
+  title: string;
+  body: string;
+  cta_label: string;
+  cta_href: string;
+  version: number;
+};
+
+const toPopup = (row: PopupRow): WelcomePopup => ({
+  enabled: row.enabled,
+  title: row.title,
+  body: row.body,
+  ctaLabel: row.cta_label,
+  ctaHref: row.cta_href,
+  version: row.version,
+});
+
+export async function getWelcomePopup(): Promise<WelcomePopup> {
+  const { rows } = await getPool().query<PopupRow>(
+    "select enabled, title, body, cta_label, cta_href, version from welcome_popup where id = 'welcome'",
   );
-  const order: Channel[] = ["system", "email", "sms", "push"];
-  return rows
-    .filter((row): row is typeof row & { channel: Channel } => isChannel(row.channel))
-    .sort((a, b) => order.indexOf(a.channel) - order.indexOf(b.channel));
+  return rows[0] ? toPopup(rows[0]) : { enabled: false, title: "", body: "", ctaLabel: "", ctaHref: "", version: 1 };
 }
 
-export async function saveWelcomeTemplates(templates: WelcomeTemplate[]): Promise<void> {
-  const client = await getPool().connect();
-  try {
-    await client.query("begin");
-    for (const t of templates) {
-      await client.query(
-        `insert into welcome_templates (channel, enabled, subject, body) values ($1, $2, $3, $4)
-         on conflict (channel) do update set enabled = excluded.enabled, subject = excluded.subject,
-         body = excluded.body, updated_at = now()`,
-        [t.channel, t.enabled, t.subject, t.body],
-      );
-    }
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
+export async function saveWelcomePopup(popup: Omit<WelcomePopup, "version">, showAgain: boolean): Promise<void> {
+  await getPool().query(
+    `insert into welcome_popup (id, enabled, title, body, cta_label, cta_href)
+     values ('welcome', $1, $2, $3, $4, $5)
+     on conflict (id) do update
+       set enabled = excluded.enabled, title = excluded.title, body = excluded.body,
+           cta_label = excluded.cta_label, cta_href = excluded.cta_href,
+           version = welcome_popup.version + case when $6::boolean then 1 else 0 end,
+           updated_at = now()`,
+    [popup.enabled, popup.title, popup.body, popup.ctaLabel, popup.ctaHref, showAgain],
+  );
 }
 
-export async function claimWelcome(customerId: string): Promise<Recipient | null> {
-  const { rows } = await getPool().query<Recipient>(
-    `update customers set welcome_sent_at = now()
-     where id = $1 and welcome_sent_at is null
-     returning id, name, username, email, phone`,
+export async function getUnseenWelcome(customerId: string): Promise<WelcomePopup | null> {
+  const { rows } = await getPool().query<PopupRow>(
+    `select w.enabled, w.title, w.body, w.cta_label, w.cta_href, w.version
+     from welcome_popup w
+     join customers c on c.id = $1
+     where w.enabled and c.welcome_seen_version < w.version`,
     [customerId],
   );
-  return rows[0] ?? null;
+  return rows[0] ? toPopup(rows[0]) : null;
+}
+
+export async function markWelcomeSeen(customerId: string, version: number): Promise<void> {
+  await getPool().query(
+    "update customers set welcome_seen_version = greatest(welcome_seen_version, $2) where id = $1",
+    [customerId, version],
+  );
 }
 
 export async function insertNotification(n: {

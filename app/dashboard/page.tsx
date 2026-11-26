@@ -14,6 +14,9 @@ import { formatLongDate, greetingFor } from "@/lib/format";
 import { getNairaBalance } from "@/lib/wallet";
 import { getSpursUser } from "@/lib/spurs";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
+import { WelcomeModal } from "@/components/dashboard/welcome-modal";
+import { renderTemplate } from "@/lib/admin/announcements";
+import { getUnseenWelcome } from "@/lib/db/announcements";
 
 export const metadata: Metadata = { title: "Dashboard | Spur VTU" };
 export const instant = false;
@@ -26,12 +29,30 @@ async function DashboardContent() {
   const verified = user && "kyc_status" in user && user.kyc_status === "verified";
   const now = new Date();
 
-  const [balance, transactions, spend] = user
-    ? await Promise.all([getNairaBalance(user.sub), getRecentTransactions(user.sub), getMonthlySpend(user.sub)])
-    : [null, [], { total: 0, byService: [] }];
+  const [balance, transactions, spend, welcome] = user
+    ? await Promise.all([
+        getNairaBalance(user.sub),
+        getRecentTransactions(user.sub),
+        getMonthlySpend(user.sub),
+        getUnseenWelcome(user.sub).catch((error) => {
+          console.error("[welcome] Could not load popup", error);
+          return null;
+        }),
+      ])
+    : [null, [], { total: 0, byService: [] }, null];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
+      {welcome && (
+        <WelcomeModal
+          key={welcome.version}
+          version={welcome.version}
+          title={renderTemplate(welcome.title, { name: user?.name ?? null, username: username ?? null })}
+          body={renderTemplate(welcome.body, { name: user?.name ?? null, username: username ?? null })}
+          ctaLabel={welcome.ctaLabel}
+          ctaHref={welcome.ctaHref}
+        />
+      )}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">

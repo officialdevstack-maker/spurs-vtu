@@ -2,42 +2,30 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
-import { BODY_LIMIT, CHANNELS, SMS_LIMIT, SUBJECT_LIMIT, WELCOME_PATH, isChannel, type WelcomeTemplate } from "@/lib/admin/announcements";
-import { saveWelcomeTemplates } from "@/lib/db/announcements";
-import { channelAvailability } from "@/lib/messaging/send";
+import { POPUP_BODY_LIMIT, POPUP_CTA_LIMIT, POPUP_TITLE_LIMIT, WELCOME_PATH } from "@/lib/admin/announcements";
+import { saveWelcomePopup } from "@/lib/db/announcements";
 
+export type WelcomeInput = { enabled: boolean; title: string; body: string; ctaLabel: string; ctaHref: string; showAgain: boolean };
 export type WelcomeResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): WelcomeResult => ({ ok: false, error });
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-export async function saveWelcome(input: WelcomeTemplate[]): Promise<WelcomeResult> {
+export async function saveWelcome(input: WelcomeInput): Promise<WelcomeResult> {
   await requirePermission("announcements.manage");
-  if (!Array.isArray(input) || input.length > CHANNELS.length) return fail("Check the messages and try again.");
-
-  const availability = channelAvailability();
-  const seen = new Set<string>();
-  const templates: WelcomeTemplate[] = [];
-
-  for (const item of input) {
-    if (!item || typeof item !== "object" || !isChannel(item.channel) || seen.has(item.channel)) {
-      return fail("Check the messages and try again.");
-    }
-    seen.add(item.channel);
-    const meta = CHANNELS.find((c) => c.id === item.channel)!;
-    const subject = meta.hasSubject ? text(item.subject) : "";
-    const body = text(item.body);
-    const enabled = item.enabled === true;
-    if (subject.length > SUBJECT_LIMIT) return fail(`${meta.label}: the title can be up to ${SUBJECT_LIMIT} characters.`);
-    if (body.length > (item.channel === "sms" ? SMS_LIMIT : BODY_LIMIT)) return fail(`${meta.label}: the message is too long.`);
-    if (enabled) {
-      if (!availability[item.channel].available) return fail(`${meta.label} isn't set up yet, so it can't be turned on.`);
-      if (!body || (meta.hasSubject && !subject)) return fail(`${meta.label}: add a ${meta.hasSubject ? "title and " : ""}message.`);
-    }
-    templates.push({ channel: item.channel, enabled, subject, body });
-  }
+  if (!input || typeof input !== "object") return fail("Check the message and try again.");
+  const title = text(input.title);
+  const body = text(input.body);
+  const ctaLabel = text(input.ctaLabel);
+  const ctaHref = text(input.ctaHref);
+  if (title.length > POPUP_TITLE_LIMIT) return fail(`The title can be up to ${POPUP_TITLE_LIMIT} characters.`);
+  if (body.length > POPUP_BODY_LIMIT) return fail(`The message can be up to ${POPUP_BODY_LIMIT} characters.`);
+  if (ctaLabel.length > POPUP_CTA_LIMIT) return fail(`The button label can be up to ${POPUP_CTA_LIMIT} characters.`);
+  if (input.enabled === true && (!title || !body)) return fail("Add a title and a message before turning it on.");
+  if (!!ctaLabel !== !!ctaHref) return fail("Add both a button label and a link, or leave both empty.");
+  if (ctaHref && (!ctaHref.startsWith("/") || ctaHref.startsWith("//") || /\s/.test(ctaHref))) return fail("The link must be a page on this site, like /fund-wallet.");
 
   try {
-    await saveWelcomeTemplates(templates);
+    await saveWelcomePopup({ enabled: input.enabled === true, title, body, ctaLabel, ctaHref }, input.showAgain === true);
     revalidatePath(WELCOME_PATH);
     return { ok: true };
   } catch (error) {

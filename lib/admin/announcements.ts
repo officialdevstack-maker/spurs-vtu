@@ -23,8 +23,19 @@ export const SMS_LIMIT = 320;
 export const SUBJECT_LIMIT = 120;
 export const BODY_LIMIT = 2000;
 
+export const POPUP_TITLE_LIMIT = 80;
+export const POPUP_BODY_LIMIT = 500;
+export const POPUP_CTA_LIMIT = 30;
+
 export type ChannelAvailability = Record<Channel, { available: boolean; reason?: string }>;
-export type WelcomeTemplate = { channel: Channel; enabled: boolean; subject: string; body: string };
+export type WelcomePopup = {
+  enabled: boolean;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaHref: string;
+  version: number;
+};
 export type Recipient = { id: string; name: string | null; username: string | null; email: string | null; phone: string | null };
 export type ChannelResult = { sent: number; failed: number; skipped: number };
 export type BroadcastResults = Partial<Record<Channel, ChannelResult>>;
@@ -47,6 +58,7 @@ export type NotificationItem = { id: string; title: string; body: string; read: 
 export const ANNOUNCEMENTS_PATH = "/admin/announcements";
 export const WELCOME_PATH = "/admin/announcements/welcome";
 export const BROADCAST_PATH = "/admin/announcements/broadcast";
+export const TEMPLATES_PATH = "/admin/announcements/templates";
 
 export function renderTemplate(text: string, who: { name: string | null; username: string | null }): string {
   const first = who.name?.trim().split(/\s+/)[0] || who.username?.trim() || "there";
