@@ -40,6 +40,7 @@ export async function DashboardLayout({ children }: { children: ReactNode }) {
       }}
       unreadCount={unreadCount}
       switchTo={isStaff ? "admin" : undefined}
+      showSupport
     >
       {children}
     </DashboardShell>

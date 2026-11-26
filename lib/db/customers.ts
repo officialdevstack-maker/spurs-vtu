@@ -124,3 +124,63 @@ export async function findCustomerByIdentifier(
   );
   return rows[0] ?? null;
 }
+
+export type CustomerDetail = {
+  id: string;
+  name: string | null;
+  username: string | null;
+  email: string | null;
+  phone: string | null;
+  status: CustomerStatus;
+  createdAt: string;
+  lastSeenAt: string;
+  packageName: string | null;
+  fraudExempt: boolean;
+  hasPin: boolean;
+  staffRole: string | null;
+};
+
+export async function getCustomerDetail(id: string): Promise<CustomerDetail | null> {
+  const { rows } = await getPool().query<{
+    id: string;
+    name: string | null;
+    username: string | null;
+    email: string | null;
+    phone: string | null;
+    status: CustomerStatus;
+    created_at: Date;
+    last_seen_at: Date;
+    package_name: string | null;
+    fraud_exempt: boolean;
+    has_pin: boolean;
+    staff_role: string | null;
+  }>(
+    `select c.id, c.name, c.username, c.email, c.phone, c.status, c.created_at, c.last_seen_at,
+            p.name as package_name, c.fraud_exempt,
+            exists(select 1 from customer_pins cp where cp.customer_id = c.id and cp.pin_hash is not null) as has_pin,
+            r.name as staff_role
+       from customers c
+       left join packages p on p.id = c.package_id
+       left join staff_members s on s.customer_id = c.id
+       left join roles r on r.id = s.role_id
+      where c.id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        username: row.username,
+        email: row.email,
+        phone: row.phone,
+        status: row.status,
+        createdAt: row.created_at.toISOString(),
+        lastSeenAt: row.last_seen_at.toISOString(),
+        packageName: row.package_name,
+        fraudExempt: row.fraud_exempt,
+        hasPin: row.has_pin,
+        staffRole: row.staff_role,
+      }
+    : null;
+}

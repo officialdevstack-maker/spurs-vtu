@@ -113,7 +113,12 @@ export default async function CustomersPage({
                 {customers.map((customer) => (
                   <tr key={customer.id}>
                     <td className="px-5 py-4">
-                      <p className="font-medium">{customer.name || customer.username || "Unnamed customer"}</p>
+                      <Link
+                        href={`/admin/users/list/${encodeURIComponent(customer.id)}`}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {customer.name || customer.username || "Unnamed customer"}
+                      </Link>
                       {customer.username ? (
                         <p className="mt-1 text-xs text-gray-600 dark:text-[#9FB3B7]">@{customer.username}</p>
                       ) : null}

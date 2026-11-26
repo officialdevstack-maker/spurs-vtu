@@ -175,3 +175,20 @@ export async function resetPinWithToken(customerId: string, token: string, pin: 
     client.release();
   }
 }
+
+/** Support reset: the customer goes back to "no PIN" and must set a new one. */
+export async function adminResetPin(customerId: string): Promise<boolean> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const removed = await client.query("delete from customer_pins where customer_id = $1", [customerId]);
+    await client.query("delete from pin_reset_tokens where customer_id = $1 and used_at is null", [customerId]);
+    await client.query("commit");
+    return (removed.rowCount ?? 0) > 0;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

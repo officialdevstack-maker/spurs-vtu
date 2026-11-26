@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
+import { LifeBuoy } from "lucide-react";
 import { AccountBarView } from "@/components/dashboard/account-bar-view";
 import { Sidebar, type SidebarUser } from "./sidebar";
 import type { NavGroup } from "@/lib/nav";
@@ -15,6 +17,7 @@ export function DashboardShell({
   brandSuffix,
   switchTo,
   showNotifications,
+  showSupport,
   children,
 }: {
   user: SidebarUser;
@@ -23,6 +26,7 @@ export function DashboardShell({
   brandSuffix?: string;
   switchTo?: "admin" | "user";
   showNotifications?: boolean;
+  showSupport?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -129,6 +133,16 @@ export function DashboardShell({
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
+      {showSupport && (
+        <Link
+          href="/dashboard/support"
+          aria-label="Customer support"
+          title="Customer support"
+          className="fixed bottom-5 right-5 z-30 grid size-14 place-items-center rounded-full bg-[#F2B632] text-[#12343B] shadow-lg outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 dark:focus-visible:ring-[#F2B632] dark:focus-visible:ring-offset-[#0B1B1F]"
+        >
+          <LifeBuoy className="size-6" aria-hidden="true" />
+        </Link>
+      )}
     </div>
   );
 }

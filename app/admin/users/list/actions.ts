@@ -30,6 +30,7 @@ export async function setCustomerStatusAction(id: string, status: CustomerStatus
     });
 
     revalidatePath("/admin/users/list");
+    revalidatePath(`/admin/users/list/${id}`);
     return { ok: true as const };
   } catch (error) {
     console.error("[customers]", error);

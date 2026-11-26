@@ -13,6 +13,7 @@ import { refundPurchase } from "@/lib/payment";
 import { notify } from "@/lib/notify";
 import { onPurchaseSuccess } from "@/lib/rewards";
 import type { WebhookResult } from "@/lib/admin/webhooks";
+import { publishOrderEvent } from "@/lib/api/webhooks";
 
 type RefundState = "refunded" | "needed" | "none";
 
@@ -45,6 +46,7 @@ async function announce(tx: SettledTransaction, outcome: "success" | "failed", r
         ? `${item} went through.`
         : `${item} couldn't be completed. ${refund === "refunded" ? "Your money is back in your wallet." : "Your refund is being processed."}`,
   });
+  await publishOrderEvent(tx.id);
 }
 
 export async function settleFromWebhook(input: {

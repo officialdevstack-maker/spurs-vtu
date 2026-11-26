@@ -128,3 +128,44 @@ export async function countOpenFlags(): Promise<number> {
   const { rows } = await getPool().query<{ n: string }>("select count(*)::text as n from fraud_flags where status = 'open'");
   return Number(rows[0]?.n ?? 0);
 }
+
+export type CustomerFlag = {
+  id: string;
+  rule: FraudRuleId;
+  action: FraudAction;
+  status: "open" | "reviewed";
+  resolution: "dismissed" | "confirmed" | null;
+  at: string;
+};
+
+export async function listCustomerFlags(customerId: string, limit = 10): Promise<CustomerFlag[]> {
+  const { rows } = await getPool().query<{
+    id: string;
+    rule: FraudRuleId;
+    action: FraudAction;
+    status: "open" | "reviewed";
+    resolution: "dismissed" | "confirmed" | null;
+    created_at: Date;
+  }>(
+    `select id, rule, action, status, resolution, created_at
+     from fraud_flags where customer_id = $1
+     order by (status = 'open') desc, created_at desc limit $2`,
+    [customerId, limit],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    rule: r.rule,
+    action: r.action,
+    status: r.status,
+    resolution: r.resolution,
+    at: r.created_at.toISOString(),
+  }));
+}
+
+export async function setFraudExempt(customerId: string, exempt: boolean): Promise<boolean> {
+  const { rowCount } = await getPool().query(
+    "update customers set fraud_exempt = $2 where id = $1",
+    [customerId, exempt],
+  );
+  return (rowCount ?? 0) > 0;
+}

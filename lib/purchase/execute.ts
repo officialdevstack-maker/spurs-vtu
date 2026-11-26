@@ -21,6 +21,7 @@ import { recordAttempt, switchProvider, type Route } from "@/lib/db/failover";
 import { screenPurchase } from "@/lib/fraud";
 import { quotePromo, type PromoQuote } from "@/lib/promotions";
 import { reserveRedemption } from "@/lib/db/promotions";
+import { publishOrderEvent } from "@/lib/api/webhooks";
 
 export const REFERENCE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const INVALID_PURCHASE = "That purchase isn't valid. Refresh the page and try again.";
@@ -63,6 +64,7 @@ export async function openPurchase(
   customerId: string,
   reference: string,
   pin: unknown,
+  options: { skipPin?: boolean } = {},
 ): Promise<{ result: PurchaseResult } | { customer: PurchaseCustomer }> {
   const existing = await findTransaction(reference, customerId);
   if (existing) {
@@ -74,8 +76,10 @@ export async function openPurchase(
     return { result: purchaseFail(existing.failureReason ?? "That purchase failed.") };
   }
 
-  const checked = await verifyPin(customerId, pin);
-  if (!checked.ok) return { result: { ok: false, error: checked.error, pin: true } };
+  if (!options.skipPin) {
+    const checked = await verifyPin(customerId, pin);
+    if (!checked.ok) return { result: { ok: false, error: checked.error, pin: true } };
+  }
 
   const customer = await getCustomerForPurchase(customerId);
   if (!customer) return { result: purchaseFail("We couldn't find your account. Refresh the page and try again.") };
@@ -269,6 +273,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
         url: `/dashboard/transactions/${reference}`,
       }),
     );
+    after(() => publishOrderEvent(reference));
     revalidatePath("/dashboard");
     return { ok: true, status: "success", message: await purchaseMessage(service, "success", { ...vars, ...extra }) };
   }
@@ -285,6 +290,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
         url: `/dashboard/transactions/${reference}`,
       }),
     );
+    after(() => publishOrderEvent(reference));
     revalidatePath("/dashboard");
     return purchaseFail(await purchaseMessage(service, "failed", { ...vars, refund_note: refundNote(refunded) }));
   }

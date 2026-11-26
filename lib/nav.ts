@@ -9,7 +9,7 @@ import {
   Wifi,
   Zap,
   Users,
-  LifeBuoy,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
@@ -33,7 +33,6 @@ export const NAV: NavGroup[] = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
-      { label: "Support", href: "/dashboard/support", icon: LifeBuoy },
     ],
   },
   {
@@ -56,6 +55,7 @@ export const NAV: NavGroup[] = [
       { label: "Packages", href: "/dashboard/packages", icon: Package },
       { label: "Cashback", href: "/dashboard/bonus", icon: Gift },
       { label: "Refer & earn", href: "/dashboard/referrals", icon: Users },
+      { label: "API", href: "/dashboard/api", icon: KeyRound },
     ],
   },
 ];
