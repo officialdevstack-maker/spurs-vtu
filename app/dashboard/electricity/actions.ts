@@ -92,7 +92,7 @@ export async function purchaseElectricity(input: unknown): Promise<PurchaseResul
   if (!customer) return fail("We couldn't find your account. Refresh the page and try again.");
   if (customer.status === "suspended") return fail("Your account is suspended. Contact support to make purchases.");
 
-  const quote = await getElectricityQuote(discoId, amount);
+  const quote = await getElectricityQuote(discoId, amount, customer.packageId);
   if (!quote) return fail(UNAVAILABLE);
 
   const price = electricityPrice(amount, quote.discount);

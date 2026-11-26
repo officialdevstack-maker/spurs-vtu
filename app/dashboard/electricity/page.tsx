@@ -5,6 +5,7 @@ import { requireSpursUser } from "@/lib/spurs";
 import { ElectricityPurchase } from "@/components/dashboard/electricity-purchase";
 import { getCustomerForPurchase } from "@/lib/db/data-purchase";
 import { getElectricityCatalog } from "@/lib/db/electricity";
+import { getCustomerPackage } from "@/lib/db/packages";
 import { getNairaBalance } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Buy electricity | Spur VTU" };
@@ -13,10 +14,11 @@ export const instant = false;
 export default async function BuyElectricityPage() {
   await connection();
   const user = await requireSpursUser();
-  const [customer, discos, balance] = await Promise.all([
-    getCustomerForPurchase(user.sub),
-    getElectricityCatalog(),
+  const customer = await getCustomerForPurchase(user.sub);
+  const [discos, balance, pkg] = await Promise.all([
+    getElectricityCatalog(customer?.packageId ?? "basic"),
     getNairaBalance(user.sub),
+    getCustomerPackage(user.sub),
   ]);
 
   return (
@@ -25,6 +27,7 @@ export default async function BuyElectricityPage() {
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Buy electricity</h1>
         <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
           Choose your distribution company, enter your meter number and an amount.
+          {pkg && ` Discounts shown are for your ${pkg.name} package.`}
         </p>
       </header>
 

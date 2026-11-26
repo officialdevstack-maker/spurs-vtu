@@ -1,8 +1,11 @@
 "use client";
 
-import { useId, useRef, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
+import { useId, useMemo, useState, useTransition } from "react";
+import { CheckCircle2, Clock, TriangleAlert, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { purchaseElectricity } from "@/app/dashboard/electricity/actions";
+import type { PurchaseResult } from "@/lib/data-purchase";
 import {
   METER_PATTERN,
   METER_TYPES,
@@ -11,11 +14,13 @@ import {
   type ElectricityDisco,
   type MeterType,
 } from "@/lib/electricity-purchase";
-import { formatNaira } from "@/lib/format";
+import { formatNaira, formatNumber } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 
-const field =
-  "h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#12343B] dark:border-white/15 dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
+const input =
+  "h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-colors placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
+const inputOk = "border-gray-300 dark:border-white/15";
+const inputBad = "border-[#C8432B]";
 
 export function ElectricityPurchase({
   discos,
@@ -27,90 +32,114 @@ export function ElectricityPurchase({
   defaultPhone?: string;
 }) {
   const ids = useId();
-  const reference = useRef(crypto.randomUUID());
   const [pending, startTransition] = useTransition();
   const [discoId, setDiscoId] = useState(discos[0]?.id ?? "");
   const [meterType, setMeterType] = useState<MeterType>("prepaid");
   const [meter, setMeter] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amountText, setAmountText] = useState("");
   const [phone, setPhone] = useState(normalizePhone(defaultPhone ?? ""));
-  const [error, setError] = useState("");
-  const [result, setResult] = useState<{ status: "success" | "pending"; message: string } | null>(null);
+  const [touched, setTouched] = useState(false);
+  const [result, setResult] = useState<PurchaseResult | null>(null);
+  const [reference, setReference] = useState(() => crypto.randomUUID());
 
-  const disco = discos.find((item) => item.id === discoId);
-  const value = Number(amount);
-  const validAmount = !!disco && Number.isInteger(value) && value >= disco.min && value <= disco.max;
-  const price = disco && validAmount ? electricityPrice(value, disco.discount) : null;
+  const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
+  const amount = amountText === "" ? NaN : Number(amountText);
+  const amountError = !Number.isInteger(amount)
+    ? "Enter a whole-naira amount."
+    : amount < disco.min || amount > disco.max
+      ? `Enter an amount from ₦${formatNumber(disco.min)} to ₦${formatNumber(disco.max)}.`
+      : null;
+  const meterError = METER_PATTERN.test(meter) ? null : "Enter your meter number, 10 to 13 digits.";
+  const phoneError = PHONE_PATTERN.test(phone) ? null : "Enter an 11-digit phone number, like 0803 123 4567.";
+  const price = amountError ? null : electricityPrice(amount, disco.discount);
+  const saving = price === null ? null : Math.round((amount - price) * 100) / 100;
+  const short = price !== null && balance !== null && balance < price;
+  const hasPackageRate = disco.discount > disco.standardDiscount;
+  const quickAmounts = QUICK_AMOUNTS.filter((value) => value >= disco.min && value <= disco.max);
 
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (pending || !disco) return;
-    setResult(null);
-    if (!METER_PATTERN.test(meter)) return setError("Enter your meter number, 10 to 13 digits.");
-    if (!validAmount) return setError(`Enter an amount from ${formatNaira(disco.min)} to ${formatNaira(disco.max)}.`);
-    if (!PHONE_PATTERN.test(phone)) return setError("Enter an 11-digit phone number, like 0803 123 4567.");
-    if (price !== null && balance !== null && balance < price) {
-      return setError(`Your wallet balance is ${formatNaira(balance)}. Fund your wallet to continue.`);
-    }
-    setError("");
-
+  function submit() {
+    setTouched(true);
+    if (pending || amountError || meterError || phoneError || short) return;
     startTransition(async () => {
       try {
-        const res = await purchaseElectricity({
-          discoId,
+        const outcome = await purchaseElectricity({
+          discoId: disco.id,
           meterType,
           meter,
-          amount: value,
+          amount,
           phone,
-          reference: reference.current,
+          reference,
         });
-        reference.current = crypto.randomUUID();
-        if (!res.ok) {
-          setError(res.error);
-          toast.error(res.error);
-          return;
+        setResult(outcome);
+        setReference(crypto.randomUUID());
+        if (outcome.ok && outcome.status === "success") {
+          setMeter("");
+          setAmountText("");
+          setTouched(false);
+          toast.success("Electricity purchase complete.");
+        } else if (!outcome.ok) {
+          toast.error("Purchase failed.");
         }
-        setResult({ status: res.status, message: res.message });
-        res.status === "success" ? toast.success("Payment successful.") : toast.message("Order is being confirmed.");
-        setMeter("");
-        setAmount("");
       } catch {
-        setError("We couldn't reach the server. Check your history before trying again.");
+        toast.error("We couldn't confirm that. Check your transactions before trying again.");
       }
     });
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      {balance !== null && (
-        <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
-          Wallet balance: <span className="font-semibold tabular-nums text-[#12343B] dark:text-[#EEF3F4]">{formatNaira(balance)}</span>
-        </p>
-      )}
-
-      {result && (
-        <div role="status" className="rounded-2xl border border-[#F2B632]/60 bg-[#FFF8E1] p-5 text-sm text-[#12343B] dark:border-[#F2B632]/30 dark:bg-[#F2B632]/10 dark:text-[#EEF3F4]">
-          <p className="font-semibold">{result.status === "success" ? "Payment successful" : "Order pending"}</p>
-          <p className="mt-1 break-words">{result.message}</p>
-        </div>
-      )}
-
-      <form onSubmit={submit} noValidate className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
-        <div>
-          <label htmlFor={`${ids}-disco`} className="mb-2 block text-sm font-medium">Distribution company</label>
-          <select id={`${ids}-disco`} className={field} value={discoId} onChange={(e) => setDiscoId(e.target.value)}>
-            {discos.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </div>
+    <div className="grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+        noValidate
+        className="space-y-6"
+      >
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">Distribution company</legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {discos.map((item) => {
+              const active = item.id === disco.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setDiscoId(item.id)}
+                  className={`rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${
+                    active
+                      ? "border-[#12343B] bg-white ring-1 ring-[#12343B] dark:border-[#F2B632] dark:bg-white/10 dark:ring-[#F2B632]"
+                      : "border-gray-200 bg-white hover:bg-gray-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold leading-snug">{item.name}</span>
+                  <span className="mt-1 block text-xs text-gray-600 dark:text-[#9FB3B7]">
+                    {item.discount > 0 ? `${item.discount}% off` : "No discount"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
 
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Meter type</legend>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="inline-flex rounded-xl border border-gray-300 p-1 dark:border-white/15">
             {METER_TYPES.map((type) => (
-              <label key={type.id} className={`flex h-12 cursor-pointer items-center justify-center rounded-xl border text-sm font-semibold ${meterType === type.id ? "border-[#12343B] bg-[#12343B] text-white dark:border-[#F2B632] dark:bg-[#F2B632] dark:text-[#12343B]" : "border-gray-300 dark:border-white/15"}`}>
-                <input type="radio" name="meter-type" className="sr-only" checked={meterType === type.id} onChange={() => setMeterType(type.id)} />
+              <button
+                key={type.id}
+                type="button"
+                aria-pressed={meterType === type.id}
+                onClick={() => setMeterType(type.id)}
+                className={`h-10 rounded-lg px-5 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:focus-visible:ring-[#F2B632] ${
+                  meterType === type.id
+                    ? "bg-[#12343B] text-white dark:bg-[#F2B632] dark:text-[#12343B]"
+                    : "text-gray-600 hover:bg-gray-100 dark:text-[#9FB3B7] dark:hover:bg-white/10"
+                }`}
+              >
                 {type.label}
-              </label>
+              </button>
             ))}
           </div>
         </fieldset>
@@ -119,63 +148,150 @@ export function ElectricityPurchase({
           <label htmlFor={`${ids}-meter`} className="mb-2 block text-sm font-medium">Meter number</label>
           <input
             id={`${ids}-meter`}
-            className={`${field} tabular-nums`}
             inputMode="numeric"
             autoComplete="off"
-            maxLength={13}
+            placeholder="e.g. 4512000987"
             value={meter}
             onChange={(e) => setMeter(e.target.value.replace(/\D/g, "").slice(0, 13))}
-            placeholder="e.g. 45120987654"
+            aria-invalid={touched && !!meterError}
+            className={`${input} tabular-nums ${touched && meterError ? inputBad : inputOk}`}
           />
+          {touched && meterError && <p role="alert" className="mt-2 text-sm text-[#C8432B]">{meterError}</p>}
         </div>
 
         <div>
           <label htmlFor={`${ids}-amount`} className="mb-2 block text-sm font-medium">Amount (₦)</label>
           <input
             id={`${ids}-amount`}
-            className={`${field} tabular-nums`}
             inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 7))}
-            placeholder={disco ? `${disco.min} – ${disco.max}` : ""}
+            autoComplete="off"
+            placeholder={`${formatNumber(disco.min)} – ${formatNumber(disco.max)}`}
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value.replace(/\D/g, "").slice(0, 8))}
+            aria-invalid={touched && !!amountError}
+            className={`${input} tabular-nums ${touched && amountError ? inputBad : inputOk}`}
           />
-          <div className="mt-3 flex flex-wrap gap-2">
-            {QUICK_AMOUNTS.filter((q) => disco && q >= disco.min && q <= disco.max).map((q) => (
-              <button key={q} type="button" onClick={() => setAmount(String(q))} className="rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-100 dark:border-white/15 dark:hover:bg-white/10">
-                {formatNaira(q).replace(".00", "")}
-              </button>
-            ))}
-          </div>
+          {quickAmounts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {quickAmounts.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAmountText(String(value))}
+                  className="h-9 rounded-lg border border-gray-300 px-3 text-sm font-medium tabular-nums outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:ring-[#F2B632]"
+                >
+                  ₦{formatNumber(value)}
+                </button>
+              ))}
+            </div>
+          )}
+          {touched && amountError && <p role="alert" className="mt-2 text-sm text-[#C8432B]">{amountError}</p>}
         </div>
 
         <div>
           <label htmlFor={`${ids}-phone`} className="mb-2 block text-sm font-medium">Phone number</label>
           <input
             id={`${ids}-phone`}
-            className={`${field} tabular-nums`}
             type="tel"
             inputMode="numeric"
             autoComplete="tel"
+            placeholder="0803 123 4567"
             value={groupPhone(phone)}
             onChange={(e) => setPhone(normalizePhone(e.target.value))}
-            placeholder="0803 123 4567"
+            aria-invalid={touched && !!phoneError}
+            className={`${input} tabular-nums ${touched && phoneError ? inputBad : inputOk}`}
           />
-          <p className="mt-2 text-xs text-gray-600 dark:text-[#9FB3B7]">Your token and receipt are sent here.</p>
+          <p className="mt-1 text-xs text-gray-600 dark:text-[#9FB3B7]">Your prepaid token can be sent here.</p>
+          {touched && phoneError && <p role="alert" className="mt-2 text-sm text-[#C8432B]">{phoneError}</p>}
         </div>
 
-        {price !== null && disco && (
-          <p className="text-sm">
-            You pay <span className="font-semibold tabular-nums">{formatNaira(price)}</span>
-            {disco.discount > 0 && <span className="text-gray-600 dark:text-[#9FB3B7]"> ({disco.discount}% off)</span>}
-          </p>
-        )}
-
-        {error && <p role="alert" className="text-sm text-[#C8432B]">{error}</p>}
-
-        <button type="submit" disabled={pending} className="h-12 w-full rounded-xl bg-[#F2B632] text-base font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
-          {pending ? "Processing…" : "Pay for electricity"}
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F2B632] text-base font-semibold text-[#12343B] outline-none transition-colors hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-[#0B1B1F]"
+        >
+          <Zap className="size-5" aria-hidden="true" />
+          {pending ? "Processing..." : price !== null ? `Pay ${formatNaira(price)}` : "Pay"}
         </button>
       </form>
+
+      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-bold">Order summary</h2>
+          <dl className="mt-4 space-y-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600 dark:text-[#9FB3B7]">Disco</dt>
+              <dd className="text-right font-medium">{disco.name}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600 dark:text-[#9FB3B7]">Meter</dt>
+              <dd className="text-right font-medium tabular-nums">{meter || "—"} · {METER_TYPES.find((t) => t.id === meterType)?.label}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600 dark:text-[#9FB3B7]">Amount</dt>
+              <dd className="font-medium tabular-nums">{amountError ? "—" : formatNaira(amount)}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600 dark:text-[#9FB3B7]">Discount</dt>
+              <dd className="font-medium tabular-nums">{disco.discount}%{saving !== null && saving > 0 && ` (−${formatNaira(saving)})`}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-dashed border-gray-300 pt-3 text-base dark:border-white/15">
+              <dt className="font-semibold">You pay</dt>
+              <dd className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">{price === null ? "—" : formatNaira(price)}</dd>
+            </div>
+          </dl>
+          {hasPackageRate && (
+            <p className="mt-3 rounded-lg bg-[#E6F4EC] px-3 py-2 text-xs font-medium text-[#14693A] dark:bg-[#4CC38A]/15 dark:text-[#4CC38A]">
+              Your package gets {disco.discount}% instead of the standard {disco.standardDiscount}%.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+          <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">Wallet balance</p>
+          <p className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold tabular-nums">
+            {balance === null ? "Unavailable" : formatNaira(balance)}
+          </p>
+          {short && (
+            <p role="alert" className="mt-3 text-sm text-[#C8432B]">
+              Your balance is lower than this order.{" "}
+              <Link href="/fund-wallet" className="font-semibold underline underline-offset-4">Fund wallet</Link>
+            </p>
+          )}
+        </section>
+
+        {result && (
+          <div
+            role={result.ok ? "status" : "alert"}
+            className={`flex gap-3 rounded-2xl border p-5 ${
+              !result.ok
+                ? "border-[#C8432B] bg-white dark:bg-white/5"
+                : result.status === "success"
+                  ? "border-[#1E8E4F]/40 bg-[#E6F4EC] dark:border-[#4CC38A]/30 dark:bg-[#4CC38A]/10"
+                  : "border-[#F2B632]/60 bg-[#FFF8E1] dark:border-[#F2B632]/30 dark:bg-[#F2B632]/10"
+            }`}
+          >
+            {!result.ok ? (
+              <TriangleAlert className="mt-0.5 size-5 shrink-0 text-[#C8432B]" aria-hidden="true" />
+            ) : result.status === "success" ? (
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#1E8E4F] dark:text-[#4CC38A]" aria-hidden="true" />
+            ) : (
+              <Clock className="mt-0.5 size-5 shrink-0 text-[#7A5600] dark:text-[#F2B632]" aria-hidden="true" />
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold">
+                {!result.ok ? "Purchase failed" : result.status === "success" ? "Payment complete" : "Waiting for confirmation"}
+              </p>
+              <p className="mt-1 break-words text-sm text-gray-700 dark:text-[#D5E0E2]">
+                {result.ok ? result.message : result.error}
+              </p>
+              <Link href="/dashboard/transactions" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
+                View transactions
+              </Link>
+            </div>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

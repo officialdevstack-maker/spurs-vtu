@@ -1,13 +1,15 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db";
-import type { ProviderOption } from "@/lib/admin/airtime-data";
-import type { Disco } from "@/lib/admin/electricity";
+import type { PackageOption, ProviderOption } from "@/lib/admin/airtime-data";
+import type { Disco, PackageDiscount } from "@/lib/admin/electricity";
 import type { ElectricityDisco } from "@/lib/electricity-purchase";
 
 export type DiscoFields = {
   name: string;
   providerCode: string;
   discount: number;
+  packageDiscounts: PackageDiscount[];
   providerId: string | null;
   providerDiscount: number | null;
   minAmount: number;
@@ -31,12 +33,13 @@ type DiscoRow = {
 const dbFail = (code: "BAD_PROVIDER") => Object.assign(new Error(code), { code });
 const changed = (r: { rowCount: number | null }) => (r.rowCount ?? 0) > 0;
 
-const toDisco = (r: DiscoRow): Disco => ({
+const toDisco = (r: DiscoRow, packageDiscounts: PackageDiscount[] = []): Disco => ({
   id: r.id,
   name: r.name,
   providerCode: r.provider_code,
   enabled: r.enabled,
   discount: Number(r.discount),
+  packageDiscounts,
   providerId: r.provider_id,
   providerName: r.provider_name,
   providerDiscount: r.provider_discount === null ? null : Number(r.provider_discount),
@@ -45,14 +48,32 @@ const toDisco = (r: DiscoRow): Disco => ({
 });
 
 export async function getDiscos(): Promise<Disco[]> {
-  const { rows } = await getPool().query<DiscoRow>(
-    `select d.id, d.name, d.provider_code, d.enabled, d.discount, d.provider_id, p.name as provider_name,
-            d.provider_discount, d.min_amount, d.max_amount
-     from electricity_discos d
-     left join providers p on p.id = d.provider_id
-     order by d.sort_order, d.name`,
-  );
-  return rows.map(toDisco);
+  const pool = getPool();
+  const [discos, overrides] = await Promise.all([
+    pool.query<DiscoRow>(
+      `select d.id, d.name, d.provider_code, d.enabled, d.discount, d.provider_id, p.name as provider_name,
+              d.provider_discount, d.min_amount, d.max_amount
+       from electricity_discos d
+       left join providers p on p.id = d.provider_id
+       order by d.sort_order, d.name`,
+    ),
+    pool.query<{ disco_id: string; package_id: string; discount: string }>(
+      "select disco_id, package_id, discount from electricity_disco_package_discounts",
+    ),
+  ]);
+
+  const byDisco = new Map<string, PackageDiscount[]>();
+  for (const row of overrides.rows) {
+    const list = byDisco.get(row.disco_id) ?? [];
+    list.push({ packageId: row.package_id, discount: Number(row.discount) });
+    byDisco.set(row.disco_id, list);
+  }
+  return discos.rows.map((row) => toDisco(row, byDisco.get(row.id) ?? []));
+}
+
+export async function listPackageOptions(): Promise<PackageOption[]> {
+  const { rows } = await getPool().query<PackageOption>("select id, name from packages order by sort_order, name");
+  return rows;
 }
 
 export async function listElectricityProviders(): Promise<ProviderOption[]> {
@@ -77,30 +98,65 @@ async function checkDisco(d: DiscoFields) {
   if (!provider.rowCount) throw dbFail("BAD_PROVIDER");
 }
 
+async function writePackageDiscounts(client: PoolClient, discoId: string, items: PackageDiscount[]) {
+  await client.query("delete from electricity_disco_package_discounts where disco_id = $1", [discoId]);
+  if (items.length === 0) return;
+  await client.query(
+    `insert into electricity_disco_package_discounts (disco_id, package_id, discount)
+     select $1, t.package_id, t.discount
+     from unnest($2::text[], $3::numeric[]) as t(package_id, discount)`,
+    [discoId, items.map((i) => i.packageId), items.map((i) => i.discount)],
+  );
+}
+
 export async function createDisco(id: string, d: DiscoFields): Promise<boolean> {
   await checkDisco(d);
-  return changed(
-    await getPool().query(
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(
       `insert into electricity_discos
          (id, name, provider_code, enabled, discount, provider_id, provider_discount, min_amount, max_amount, sort_order)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9,
                (select coalesce(max(sort_order), 0) + 1 from electricity_discos))`,
       [id, d.name, d.providerCode, d.enabled, d.discount, d.providerId, d.providerDiscount, d.minAmount, d.maxAmount],
-    ),
-  );
+    );
+    await writePackageDiscounts(client, id, d.packageDiscounts);
+    await client.query("commit");
+    return changed(result);
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateDisco(id: string, d: DiscoFields): Promise<boolean> {
   await checkDisco(d);
-  return changed(
-    await getPool().query(
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(
       `update electricity_discos
        set name = $2, provider_code = $3, enabled = $4, discount = $5, provider_id = $6,
            provider_discount = $7, min_amount = $8, max_amount = $9
        where id = $1`,
       [id, d.name, d.providerCode, d.enabled, d.discount, d.providerId, d.providerDiscount, d.minAmount, d.maxAmount],
-    ),
-  );
+    );
+    if (!changed(result)) {
+      await client.query("rollback");
+      return false;
+    }
+    await writePackageDiscounts(client, id, d.packageDiscounts);
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function setDiscoEnabled(id: string, enabled: boolean): Promise<boolean> {
@@ -111,16 +167,20 @@ export async function deleteDisco(id: string): Promise<boolean> {
   return changed(await getPool().query("delete from electricity_discos where id = $1", [id]));
 }
 
-export async function getElectricityCatalog(): Promise<ElectricityDisco[]> {
+/** Discos a customer on `packageId` can buy, with that package's discount applied. */
+export async function getElectricityCatalog(packageId: string): Promise<ElectricityDisco[]> {
   const { rows } = await getPool().query<{
     id: string;
     name: string;
     min_amount: string;
     max_amount: string;
     discount: string;
+    standard_discount: string;
   }>(
-    `select d.id, d.name, d.min_amount, d.max_amount, d.discount
+    `select d.id, d.name, d.min_amount, d.max_amount,
+            coalesce(pd.discount, d.discount) as discount, d.discount as standard_discount
      from electricity_discos d
+     left join electricity_disco_package_discounts pd on pd.disco_id = d.id and pd.package_id = $1
      where d.enabled
        and exists (
          select 1
@@ -128,6 +188,7 @@ export async function getElectricityCatalog(): Promise<ElectricityDisco[]> {
          join provider_endpoints e on e.provider_id = pr.id and e.service = 'electricity' and e.active
          where pr.enabled and (d.provider_id is null or pr.id = d.provider_id))
      order by d.sort_order, d.name`,
+    [packageId],
   );
   return rows.map((row) => ({
     id: row.id,
@@ -135,6 +196,7 @@ export async function getElectricityCatalog(): Promise<ElectricityDisco[]> {
     min: Number(row.min_amount),
     max: Number(row.max_amount),
     discount: Number(row.discount),
+    standardDiscount: Number(row.standard_discount),
   }));
 }
 
@@ -146,7 +208,11 @@ export type ElectricityQuote = {
   providerDiscount: number | null;
 };
 
-export async function getElectricityQuote(discoId: string, amount: number): Promise<ElectricityQuote | null> {
+export async function getElectricityQuote(
+  discoId: string,
+  amount: number,
+  packageId: string,
+): Promise<ElectricityQuote | null> {
   const { rows } = await getPool().query<{
     name: string;
     provider_code: string;
@@ -154,10 +220,12 @@ export async function getElectricityQuote(discoId: string, amount: number): Prom
     provider_id: string | null;
     provider_discount: string | null;
   }>(
-    `select name, provider_code, discount, provider_id, provider_discount
-     from electricity_discos
-     where id = $1 and enabled and min_amount <= $2 and max_amount >= $2`,
-    [discoId, amount],
+    `select d.name, d.provider_code, coalesce(pd.discount, d.discount) as discount,
+            d.provider_id, d.provider_discount
+     from electricity_discos d
+     left join electricity_disco_package_discounts pd on pd.disco_id = d.id and pd.package_id = $3
+     where d.id = $1 and d.enabled and d.min_amount <= $2 and d.max_amount >= $2`,
+    [discoId, amount, packageId],
   );
   const row = rows[0];
   return row

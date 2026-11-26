@@ -15,7 +15,10 @@ export type ElectricityDisco = {
   name: string;
   min: number;
   max: number;
+  /** What this customer's package gets off. */
   discount: number;
+  /** What the standard rate gets off, so the page can show a better package rate. */
+  standardDiscount: number;
 };
 
 export const electricityPrice = (amount: number, discount: number) =>

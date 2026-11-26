@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/admin/auth";
 import { slugify } from "@/lib/admin/airtime-data";
 import { ELECTRICITY_PATH } from "@/lib/admin/electricity";
+import type { PackageDiscount } from "@/lib/admin/electricity";
 import { ELECTRICITY_PATH as USER_ELECTRICITY_PATH } from "@/lib/electricity-purchase";
 import * as db from "@/lib/db/electricity";
 import type { DiscoFields } from "@/lib/db/electricity";
@@ -24,7 +25,7 @@ const naira = (value: unknown): value is number =>
 function dbError(error: unknown): ActionResult {
   const code = (error as { code?: string } | null)?.code;
   if (code === "23505") return fail("A disco with that name already exists.");
-  if (code === "23503") return fail("That provider no longer exists. Refresh the page.");
+  if (code === "23503") return fail("That provider or package no longer exists. Refresh the page.");
   if (code === "BAD_PROVIDER") return fail("Pick a provider that has an electricity endpoint, or choose any provider.");
   console.error("[electricity]", error);
   return fail("Something went wrong saving that. Try again.");
@@ -39,6 +40,22 @@ async function run(fn: () => Promise<boolean>, id?: string): Promise<ActionResul
   } catch (error) {
     return dbError(error);
   }
+}
+
+function parsePackageDiscounts(input: unknown): PackageDiscount[] | null {
+  if (input === undefined) return [];
+  if (!Array.isArray(input) || input.length > 50) return null;
+
+  const seen = new Set<string>();
+  const result: PackageDiscount[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") return null;
+    const { packageId, discount } = item as Partial<PackageDiscount>;
+    if (typeof packageId !== "string" || !packageId || seen.has(packageId) || !percent(discount)) return null;
+    seen.add(packageId);
+    result.push({ packageId, discount: round2(discount) });
+  }
+  return result;
 }
 
 function parseDisco(input: unknown): DiscoFields | string {
@@ -58,6 +75,8 @@ function parseDisco(input: unknown): DiscoFields | string {
   if (!percent(raw.discount)) return "The discount must be from 0 to 100.";
   const providerDiscount = raw.providerDiscount ?? null;
   if (providerDiscount !== null && !percent(providerDiscount)) return "The provider discount must be from 0 to 100.";
+  const packageDiscounts = parsePackageDiscounts(raw.packageDiscounts);
+  if (!packageDiscounts) return "A package discount must be from 0 to 100.";
   if (!naira(raw.minAmount) || !naira(raw.maxAmount) || raw.maxAmount < raw.minAmount) {
     return "Enter a minimum amount, and a maximum that is not lower.";
   }
@@ -67,6 +86,7 @@ function parseDisco(input: unknown): DiscoFields | string {
     name,
     providerCode,
     discount: round2(raw.discount),
+    packageDiscounts,
     providerId,
     providerDiscount: providerDiscount === null ? null : round2(providerDiscount),
     minAmount: round2(raw.minAmount),
