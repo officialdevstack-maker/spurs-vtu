@@ -31,6 +31,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">Receipt</h1>
       </header>
       <ReceiptCard receipt={receipt} detail={receipt.detail} />
+      <Link
+        href={`/dashboard/support/new?transaction=${encodeURIComponent(receipt.id)}`}
+        className="text-sm font-medium underline underline-offset-4"
+      >
+        Get help with this purchase
+      </Link>
       {receipt.status === "success" && receipt.direction === "debit" && <ReceiptShare id={receipt.id} />}
     </div>
   );

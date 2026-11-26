@@ -1,5 +1,5 @@
 import "server-only";
-import webpush from "web-push";
+import { sendNotification, setVapidDetails } from "web-push";
 import { deleteByEndpoint, listWebSubscriptions, touchEndpoint } from "@/lib/db/push";
 
 export const pushConfigured = () =>
@@ -8,7 +8,7 @@ export const pushConfigured = () =>
 let ready = false;
 function init() {
   if (ready) return;
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+  setVapidDetails(process.env.VAPID_SUBJECT!, process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
   ready = true;
 }
 
@@ -30,7 +30,7 @@ export async function pushToCustomer(customerId: string, message: PushMessage): 
   const results = await Promise.all(
     subs.map(async (sub) => {
       try {
-        await webpush.sendNotification(
+        await sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload,
           { TTL: 86_400, timeout: 10_000 },
