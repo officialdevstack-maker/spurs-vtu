@@ -1,6 +1,6 @@
 import "server-only";
 import { getPool } from "@/lib/db";
-import type { CashbackEntry, CashbackRule, CashbackService, CashbackSettings } from "@/lib/admin/cashback";
+import type { AdminCashbackEntry, CashbackEntry, CashbackRule, CashbackService, CashbackSettings } from "@/lib/admin/cashback";
 
 const MASTER_KEY = "cashback_enabled";
 type RuleRow = { service: CashbackService; enabled: boolean; percent: string; min_spend: string; monthly_cap: string | null };
@@ -30,8 +30,10 @@ export async function changeCashbackBalance(input: {
   amountKobo: number;
   reference: string;
   direction: "credit" | "debit";
-  source: "earn" | "spend" | "restore" | "referral";
+  source: "earn" | "spend" | "restore" | "referral" | "adjust";
   service?: string | null;
+  note?: string | null;
+  createdBy?: string | null;
 }): Promise<boolean> {
   if (!Number.isSafeInteger(input.amountKobo) || input.amountKobo <= 0) {
     throw new Error("Cashback amounts must be positive whole kobo.");
@@ -57,9 +59,10 @@ export async function changeCashbackBalance(input: {
       return false;
     }
     await client.query(
-      `insert into cashback_ledger (reference, customer_id, direction, amount_kobo, source, service)
-       values ($1, $2, $3, $4, $5, $6)`,
-      [input.reference, input.customerId, input.direction, input.amountKobo, input.source, input.service ?? null],
+      `insert into cashback_ledger (reference, customer_id, direction, amount_kobo, source, service, note, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [input.reference, input.customerId, input.direction, input.amountKobo, input.source,
+       input.service ?? null, input.note ?? null, input.createdBy ?? null],
     );
     const delta = input.direction === "credit" ? input.amountKobo : -input.amountKobo;
     await client.query(
@@ -167,7 +170,13 @@ export async function saveCashbackSettings(settings: CashbackSettings): Promise<
     );
     for (const rule of settings.rules) {
       await client.query(
-        "update cashback_rules set enabled = $2, percent = $3, min_spend = $4, monthly_cap = $5 where service = $1",
+        `insert into cashback_rules (service, enabled, percent, min_spend, monthly_cap)
+         values ($1, $2, $3, $4, $5)
+         on conflict (service) do update
+         set enabled = excluded.enabled,
+             percent = excluded.percent,
+             min_spend = excluded.min_spend,
+             monthly_cap = excluded.monthly_cap`,
         [rule.service, rule.enabled, rule.percent, rule.minSpend, rule.monthlyCap],
       );
     }
@@ -204,4 +213,40 @@ export async function listCashbackHistory(customerId: string, limit = 20): Promi
     source: r.source,
     at: r.created_at.toISOString(),
   }));
+}
+
+export async function listAdminCashbackLedger(limit = 50): Promise<AdminCashbackEntry[]> {
+  const { rows } = await getPool().query<{
+    reference: string;
+    direction: "credit" | "debit";
+    amount_kobo: string;
+    source: AdminCashbackEntry["source"];
+    note: string | null;
+    created_at: Date;
+    name: string | null;
+    username: string | null;
+  }>(
+    `select l.reference, l.direction, l.amount_kobo::text, l.source, l.note, l.created_at, c.name, c.username
+     from cashback_ledger l
+     join customers c on c.id = l.customer_id
+     order by l.created_at desc
+     limit $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    id: r.reference,
+    customer: r.username ? `@${r.username}` : (r.name ?? "unknown"),
+    direction: r.direction,
+    amount: Number(r.amount_kobo) / 100,
+    source: r.source,
+    note: r.note,
+    at: r.created_at.toISOString(),
+  }));
+}
+
+export async function getCashbackLiability(): Promise<number> {
+  const { rows } = await getPool().query<{ total: string }>(
+    "select coalesce(sum(balance_kobo), 0)::text as total from cashback_wallets",
+  );
+  return Number(rows[0]?.total ?? 0) / 100;
 }

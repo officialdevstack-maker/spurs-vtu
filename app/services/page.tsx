@@ -15,7 +15,7 @@ const SERVICES: Service[] = [
   { name: "Airtime", text: "Top up any line on any network.", icon: Smartphone, href: "/dashboard/airtime" },
   { name: "Data", text: "Data plans for every network and budget.", icon: Wifi, href: "/dashboard/data" },
   { name: "Electricity", text: "Prepaid and postpaid meter tokens.", icon: Zap, href: "/dashboard/electricity" },
-  { name: "Cable TV", text: "Renew your DStv, GOtv or StarTimes subscription.", icon: Tv },
+  { name: "Cable TV", text: "Renew your DStv, GOtv or StarTimes subscription.", icon: Tv, href: "/dashboard/cable" },
   { name: "Exam pins", text: "WAEC, NECO and NABTEB result checker pins.", icon: GraduationCap },
 ];
 

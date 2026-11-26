@@ -1,6 +1,6 @@
 export type ProviderKind = "api" | "simhost";
 export type AuthType = "bearer" | "api_key_header" | "basic" | "query_param" | "none";
-export type ProviderService = "airtime" | "data" | "cable" | "electricity" | "exam" | "balance";
+export type ProviderService = "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "exam" | "balance";
 export type HttpMethod = "GET" | "POST";
 
 export const KINDS: { id: ProviderKind; label: string; hint: string }[] = [
@@ -41,6 +41,7 @@ export const PROVIDER_SERVICES: { id: ProviderService; label: string }[] = [
   { id: "airtime", label: "Airtime" },
   { id: "data", label: "Data" },
   { id: "cable", label: "Cable TV" },
+  { id: "cable_verify", label: "Cable TV: smartcard check" },
   { id: "electricity", label: "Electricity" },
   { id: "exam", label: "Exam pins" },
   { id: "balance", label: "Balance check" },

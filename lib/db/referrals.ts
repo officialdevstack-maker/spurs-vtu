@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db";
-import type { ReferralOverview, ReferralSettings } from "@/lib/admin/referrals";
+import type { AdminReferral, ReferralOverview, ReferralSettings } from "@/lib/admin/referrals";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newCode = () => Array.from(randomBytes(8), (byte) => ALPHABET[byte % ALPHABET.length]).join("");
@@ -60,9 +60,14 @@ export async function getReferralSettings(): Promise<ReferralSettings> {
 
 export async function saveReferralSettings(settings: ReferralSettings): Promise<void> {
   await getPool().query(
-    `update referral_settings
-     set enabled = $1, referrer_reward = $2, referee_reward = $3, min_purchase = $4, monthly_limit = $5
-     where id = 'main'`,
+    `insert into referral_settings (id, enabled, referrer_reward, referee_reward, min_purchase, monthly_limit)
+     values ('main', $1, $2, $3, $4, $5)
+     on conflict (id) do update
+     set enabled = excluded.enabled,
+         referrer_reward = excluded.referrer_reward,
+         referee_reward = excluded.referee_reward,
+         min_purchase = excluded.min_purchase,
+         monthly_limit = excluded.monthly_limit`,
     [settings.enabled, settings.referrerReward, settings.refereeReward, settings.minPurchase, settings.monthlyLimit],
   );
 }
@@ -180,5 +185,44 @@ export async function getReferralOverview(customerId: string): Promise<ReferralO
     rewarded: Number(mine.rows[0]?.rewarded ?? 0),
     earned: Number(earned.rows[0]?.total ?? 0) / 100,
     waitingOnFirstPurchase: own.rows[0]?.status === "pending",
+    hasReferrer: own.rows.length > 0,
   };
+}
+
+export async function listReferrals(limit = 50): Promise<AdminReferral[]> {
+  const { rows } = await getPool().query<{
+    referee_id: string;
+    referee: string | null;
+    referrer: string | null;
+    status: "pending" | "rewarded";
+    created_at: Date;
+    rewarded_at: Date | null;
+  }>(
+    `select f.referee_id,
+            coalesce('@' || e.username, e.name) as referee,
+            coalesce('@' || r.username, r.name) as referrer,
+            f.status, f.created_at, f.rewarded_at
+     from referrals f
+     join customers e on e.id = f.referee_id
+     join customers r on r.id = f.referrer_id
+     order by f.created_at desc
+     limit $1`,
+    [limit],
+  );
+  return rows.map((row) => ({
+    refereeId: row.referee_id,
+    referee: row.referee ?? "unknown",
+    referrer: row.referrer ?? "unknown",
+    status: row.status,
+    at: row.created_at.toISOString(),
+    rewardedAt: row.rewarded_at?.toISOString() ?? null,
+  }));
+}
+
+export async function revokePendingReferral(refereeId: string): Promise<boolean> {
+  const { rowCount } = await getPool().query(
+    "delete from referrals where referee_id = $1 and status = 'pending'",
+    [refereeId],
+  );
+  return (rowCount ?? 0) > 0;
 }

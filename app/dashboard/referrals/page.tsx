@@ -4,6 +4,7 @@ import { CopyButton } from "@/components/dashboard/copy-button";
 import { ensureReferralCode, getReferralOverview, getReferralSettings } from "@/lib/db/referrals";
 import { formatNaira } from "@/lib/format";
 import { requireSpursUser } from "@/lib/spurs";
+import { ReferralCodeForm } from "@/components/dashboard/referral-code-form";
 
 export const metadata: Metadata = { title: "Refer & earn | Spur VTU" };
 export const instant = false;
@@ -35,6 +36,8 @@ export default async function ReferralsPage() {
           You joined through a friend&apos;s link. Fund your wallet and make a purchase of {formatNaira(settings.minPurchase)} or more to unlock {formatNaira(settings.refereeReward)} cashback.
         </div>
       )}
+
+      {settings.enabled && !overview.hasReferrer && <ReferralCodeForm />}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-white/5">
         <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">Your link</p>

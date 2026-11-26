@@ -2,8 +2,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db";
-import type { PackageOption, PackagePrice, PriceMode, ProviderOption } from "@/lib/admin/airtime-data";
+import { resolvePackagePrice, type PackageOption, type PackagePrice, type PriceMode, type ProviderOption } from "@/lib/admin/airtime-data";
 import type { CableOperator, CablePlan } from "@/lib/admin/cable";
+import type { CableCatalogOperator, CableCatalogPlan } from "@/lib/cable-purchase";
 
 export type CablePlanFields = {
   name: string;
@@ -236,4 +237,137 @@ export async function getCablePlanFormContext(operatorId: string, includeProvide
   const found = operator.rows[0];
   if (!found) return null;
   return { operator: found, providers: providers.rows, packages: packages.rows };
+}
+
+/** Enabled operators with active bouquets that have a live provider, priced for `packageId`. */
+export async function getCableCatalog(packageId: string): Promise<CableCatalogOperator[]> {
+  const pool = getPool();
+  const [operators, plans, prices] = await Promise.all([
+    pool.query<{ id: string; name: string }>(
+      "select id, name from cable_operators where enabled order by sort_order, name",
+    ),
+    pool.query<{ id: string; operator_id: string; name: string; validity: string; price: string }>(
+      `select p.id, p.operator_id, p.name, p.validity, p.price
+       from cable_plans p
+       where p.active
+         and exists (
+           select 1 from providers pr
+           join provider_endpoints e on e.provider_id = pr.id and e.service = 'cable' and e.active
+           where pr.enabled and (p.provider_id is null or pr.id = p.provider_id))
+       order by p.price, p.name`,
+    ),
+    pool.query<{ plan_id: string; mode: PriceMode; value: string }>(
+      "select plan_id, mode, value from cable_plan_package_prices where package_id = $1",
+      [packageId],
+    ),
+  ]);
+
+  const overrides = new Map(prices.rows.map((row) => [row.plan_id, row]));
+  const byOperator = new Map<string, CableCatalogPlan[]>();
+  for (const row of plans.rows) {
+    const standardPrice = Number(row.price);
+    const override = overrides.get(row.id);
+    const list = byOperator.get(row.operator_id) ?? [];
+    list.push({
+      id: row.id,
+      name: row.name,
+      validity: row.validity,
+      price: override ? resolvePackagePrice(standardPrice, override.mode, Number(override.value)) : standardPrice,
+      standardPrice,
+    });
+    byOperator.set(row.operator_id, list);
+  }
+
+  return operators.rows
+    .map((operator) => ({ id: operator.id, name: operator.name, plans: byOperator.get(operator.id) ?? [] }))
+    .filter((operator) => operator.plans.length > 0);
+}
+
+export type PurchasableCablePlan = {
+  id: string;
+  operatorId: string;
+  operatorName: string;
+  name: string;
+  validity: string;
+  cost: number;
+  providerId: string | null;
+  providerPlanId: string;
+};
+
+export async function getPurchasableCablePlan(planId: string): Promise<PurchasableCablePlan | null> {
+  const { rows } = await getPool().query<{
+    id: string;
+    operator_id: string;
+    operator_name: string;
+    name: string;
+    validity: string;
+    cost: string;
+    provider_id: string | null;
+    provider_plan_id: string;
+  }>(
+    `select p.id, p.operator_id, o.name as operator_name, p.name, p.validity, p.cost,
+            p.provider_id, p.provider_plan_id
+     from cable_plans p
+     join cable_operators o on o.id = p.operator_id and o.enabled
+     where p.id = $1 and p.active`,
+    [planId],
+  );
+  const row = rows[0];
+  return row
+    ? {
+        id: row.id,
+        operatorId: row.operator_id,
+        operatorName: row.operator_name,
+        name: row.name,
+        validity: row.validity,
+        cost: Number(row.cost),
+        providerId: row.provider_id,
+        providerPlanId: row.provider_plan_id,
+      }
+    : null;
+}
+
+export async function getCablePlanPriceForPackage(planId: string, packageId: string): Promise<number | null> {
+  const { rows } = await getPool().query<{ price: string; mode: PriceMode | null; value: string | null }>(
+    `select p.price, pp.mode, pp.value
+     from cable_plans p
+     left join cable_plan_package_prices pp on pp.plan_id = p.id and pp.package_id = $2
+     where p.id = $1 and p.active`,
+    [planId, packageId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const price = Number(row.price);
+  return row.mode && row.value !== null ? resolvePackagePrice(price, row.mode, Number(row.value)) : price;
+}
+
+export async function pickCableProvider(preferredId: string | null): Promise<string | null> {
+  const { rows } = await getPool().query<{ id: string }>(
+    `select p.id
+     from providers p
+     join provider_endpoints e on e.provider_id = p.id and e.service = 'cable' and e.active
+     where p.enabled and ($1::text is null or p.id = $1)
+     order by p.priority, p.name
+     limit 1`,
+    [preferredId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/** Prefers `preferredId` when it has a verify endpoint, otherwise the highest-priority provider that does. */
+export async function pickCableVerifyProvider(preferredId: string | null): Promise<string | null> {
+  const { rows } = await getPool().query<{ id: string }>(
+    `select p.id
+     from providers p
+     join provider_endpoints e on e.provider_id = p.id and e.service = 'cable_verify' and e.active
+     where p.enabled
+     order by ($1::text is not null and p.id = $1) desc, p.priority, p.name
+     limit 1`,
+    [preferredId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+export async function hasCableVerifyProvider(): Promise<boolean> {
+  return (await pickCableVerifyProvider(null)) !== null;
 }

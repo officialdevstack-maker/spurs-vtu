@@ -110,3 +110,17 @@ export async function updateCustomerStatus(
   );
   return rowCount === 1;
 }
+
+export async function findCustomerByIdentifier(
+  identifier: string,
+): Promise<{ id: string; name: string | null; username: string | null } | null> {
+  const typed = identifier.trim();
+  const key = typed.replace(/^@/, "").toLowerCase();
+  const { rows } = await getPool().query<{ id: string; name: string | null; username: string | null }>(
+    `select id, name, username from customers
+     where lower(username) = $1 or lower(email) = $1 or phone = $2 or id = $2
+     limit 1`,
+    [key, typed],
+  );
+  return rows[0] ?? null;
+}
