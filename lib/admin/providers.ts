@@ -1,7 +1,7 @@
 export type ProviderKind = "api" | "simhost";
 export type AuthType = "bearer" | "api_key_header" | "basic" | "query_param" | "login" | "none";
 export type ProviderService =
-  | "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "electricity_verify" | "exam" | "balance" | "auth";
+  | "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "electricity_verify" | "exam" | "balance" | "auth" | "status";
 export type HttpMethod = "GET" | "POST";
 
 export type ResponseField = "status" | "name" | "address" | "balance" | "token" | "expires_in";
@@ -59,6 +59,7 @@ export const PROVIDER_SERVICES: { id: ProviderService; label: string }[] = [
   { id: "exam", label: "Exam pins" },
   { id: "balance", label: "Balance check" },
   { id: "auth", label: "Login (get token)" },
+  { id: "status", label: "Order status check" },
 ];
 
 export type ProviderEndpoint = {
@@ -79,6 +80,9 @@ const STATUS: FieldInfo = {
 };
 
 export const RESPONSE_FIELDS: Partial<Record<ProviderService, FieldInfo[]>> = {
+  balance: [
+    { key: "balance", label: "Balance", hint: "Where the balance is, like data.balance. Empty means auto-detect." },
+  ],
   auth: [
     { key: "token", label: "Token", hint: "Where the token is, like data.access_token. Required." },
     { key: "expires_in", label: "Lifetime in seconds", hint: "Optional. Without it, the token is reused for 50 minutes." },
@@ -98,6 +102,7 @@ export const RESPONSE_FIELDS: Partial<Record<ProviderService, FieldInfo[]>> = {
   airtime: [STATUS],
   data: [STATUS],
   cable: [STATUS],
+  status: [STATUS],
 };
 
 export type NetworkOption = { id: string; name: string };

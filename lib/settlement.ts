@@ -78,6 +78,25 @@ export async function settleFromWebhook(input: {
   return "already_settled";
 }
 
+export async function settleOne(
+  id: string,
+  outcome: "success" | "failed",
+  reason?: string,
+): Promise<"applied" | "not_pending"> {
+  const settled = await settlePending(id, outcome, {
+    reason: outcome === "failed" ? (reason ?? "Marked as failed by an admin.") : undefined,
+  });
+  if (!settled) return "not_pending";
+  if (outcome === "failed") {
+    const refund = await refundIfNeeded(settled);
+    after(() => announce(settled, "failed", refund));
+  } else {
+    await onPurchaseSuccess(id);
+    after(() => announce(settled, "success", "none"));
+  }
+  return "applied";
+}
+
 export type FailPendingReport = {
   failed: number;
   refunded: number;

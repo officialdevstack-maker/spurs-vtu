@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getProviderByToken, logWebhookEvent } from "@/lib/db/webhooks";
+import { openReconciliation } from "@/lib/db/reconciliation";
 import { settleFromWebhook } from "@/lib/settlement";
 import { interpretProviderResponse } from "@/lib/providers/result";
 
@@ -117,6 +118,9 @@ async function handle(request: NextRequest, { params }: { params: Promise<{ toke
 
     const result = await settleFromWebhook({ providerId: provider.id, reference, outcome, response: raw });
     await logWebhookEvent({ providerId: provider.id, reference, outcome, result, payload: raw });
+    if (result === "late_success") {
+      await openReconciliation(reference, "late_success", provider.id);
+    }
     return json({ received: true, applied: result === "applied", result });
   } catch (error) {
     console.error("[webhook] Failed to process callback", provider.id, error);

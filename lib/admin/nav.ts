@@ -1,4 +1,4 @@
-import { Calculator, CreditCard, Gift, LayoutDashboard, Megaphone, Network, Package, Receipt, ScrollText, Users, Webhook } from "lucide-react";
+import { Calculator, CreditCard, Gift, LayoutDashboard, Megaphone, Network, Package, Receipt, Scale, ScrollText, Users, Wallet, Webhook } from "lucide-react";
 import type { Permission } from "@/lib/admin/permissions";
 import type { NavGroup } from "@/lib/nav";
 
@@ -61,6 +61,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Gateways",
     items: [
       { label: "Providers", href: "/admin/gateways/providers", icon: Network, permission: "gateways.manage" },
+      { label: "Balances", href: "/admin/gateways/balances", icon: Wallet, permission: "gateways.manage" },
       { label: "Payment", href: "/admin/gateways/payment", icon: CreditCard, permission: "gateways.manage" },
       { label: "Webhooks", href: "/admin/gateways/webhooks", icon: Webhook, permission: "settings.manage" },
     ],
@@ -70,6 +71,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Transactions",
     items: [
       { label: "History", href: "/admin/transactions/list", icon: Receipt, permission: "transactions.view" },
+      { label: "Reconciliation", href: "/admin/transactions/reconciliation", icon: Scale, permission: "settings.manage" },
       { label: "Calculator", href: "/admin/transactions/calculator", icon: Calculator, permission: "transactions.view" },
       { label: "Audit log", href: "/admin/audit", icon: ScrollText, permission: "audit.view" },
     ],
