@@ -8,6 +8,8 @@ import { SMARTCARD_PATTERN, type CableCatalogOperator } from "@/lib/cable-purcha
 import { formatNaira } from "@/lib/format";
 import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { PinDialog } from "@/components/dashboard/pin-dialog";
+import { PromoCodeField } from "@/components/dashboard/promo-code-field";
+import type { PromoPreview } from "@/app/dashboard/promo-actions";
 
 type Check = { status: "idle" } | { status: "checking" } | SmartcardCheckResult;
 const IDLE: Check = { status: "idle" };
@@ -48,6 +50,8 @@ export function CablePurchase({
   const seq = useRef(0);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoPreview, setPromoPreview] = useState<PromoPreview | null>(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -71,8 +75,9 @@ export function CablePurchase({
 
   const operator = operators.find((o) => o.id === operatorId) ?? operators[0];
   const plan = operator.plans.find((p) => p.id === planId);
-  const cashbackApplied = plan && useCashback ? Math.min(cashback, plan.price) : 0;
-  const walletPart = plan ? plan.price - cashbackApplied : 0;
+  const finalPrice = promoPreview?.ok ? promoPreview.finalPrice : plan?.price ?? null;
+  const cashbackApplied = finalPrice !== null && useCashback ? Math.min(cashback, finalPrice) : 0;
+  const walletPart = finalPrice === null ? 0 : finalPrice - cashbackApplied;
   const tooLow = !!plan && balance !== null && balance < walletPart;
   const verified = !canVerify || check.status === "found" || check.status === "unavailable";
   const ready = !!plan && SMARTCARD_PATTERN.test(smartcard) && PHONE_PATTERN.test(phone) && verified && !tooLow;
@@ -82,7 +87,7 @@ export function CablePurchase({
     if (pin === undefined && confirmPurchases && !window.confirm(`Buy ${plan.name} for ${formatNaira(walletPart)}?`)) return;
     setError("");
     startTransition(async () => {
-      const result = await purchaseCable({ planId: plan.id, smartcard, phone, reference: reference.current, useCashback, pin });
+      const result = await purchaseCable({ planId: plan.id, smartcard, phone, reference: reference.current, useCashback, promoCode, pin });
       if (!result.ok && result.pin) {
         setPinError(result.error);
         return;
@@ -209,6 +214,15 @@ export function CablePurchase({
           className={input}
         />
       </div>
+
+      <PromoCodeField
+        service="cable"
+        price={plan?.price ?? null}
+        onChange={(code, final, preview) => {
+          setPromoCode(code);
+          setPromoPreview(preview);
+        }}
+      />
 
       {cashback > 0 && (
         <label className="flex items-center gap-3 text-sm">

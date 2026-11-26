@@ -22,7 +22,7 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { planId, phone, reference, skipNetworkCheck, useCashback, pin } = input as Record<string, unknown>;
+  const { planId, phone, reference, skipNetworkCheck, useCashback, promoCode, pin } = input as Record<string, unknown>;
   if (typeof planId !== "string" || !planId || typeof reference !== "string" || !REFERENCE.test(reference)) {
     return purchaseFail(INVALID_PURCHASE);
   }
@@ -63,5 +63,6 @@ export async function purchaseData(input: unknown): Promise<PurchaseResult> {
     providerService: "data",
     providerVars,
     alternates,
+    promoCode: typeof promoCode === "string" && promoCode.trim() ? promoCode : null,
   });
 }

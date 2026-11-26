@@ -43,6 +43,7 @@ export const ADMIN_NAV: NavGroup[] = [
           { label: "Cashback activity", href: "/admin/products/cashback/activity", permission: "products.view" },
           { label: "Referrals", href: "/admin/products/referrals", permission: "products.view" },
           { label: "Referral activity", href: "/admin/products/referrals/activity", permission: "products.view" },
+          { label: "Promotions", href: "/admin/products/promotions", permission: "products.view" },
         ],
       },
       {

@@ -19,6 +19,8 @@ import { getNairaBalance } from "@/lib/wallet";
 import { verifyPin } from "@/lib/db/pin";
 import { recordAttempt, switchProvider, type Route } from "@/lib/db/failover";
 import { screenPurchase } from "@/lib/fraud";
+import { quotePromo, type PromoQuote } from "@/lib/promotions";
+import { reserveRedemption } from "@/lib/db/promotions";
 
 export const REFERENCE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const INVALID_PURCHASE = "That purchase isn't valid. Refresh the page and try again.";
@@ -100,6 +102,7 @@ export type PurchaseSpec = {
   providerService: ProviderService;
   providerVars: Vars;
   alternates?: Route[];
+  promoCode?: string | null;
   inspect?: (result: ProviderResponse) => Record<string, string> | void;
 };
 
@@ -111,7 +114,22 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
   const screened = await screenPurchase({ customerId: user.sub, price: spec.price, reference });
   if (!screened.allow) return purchaseFail(screened.message);
 
-  const charge = await quoteCharge(user.sub, spec.price, spec.useCashback);
+  let price = spec.price;
+  let promo: Extract<PromoQuote, { ok: true }> | null = null;
+  if (spec.promoCode) {
+    const quoted = await quotePromo({
+      code: spec.promoCode,
+      customerId: user.sub,
+      service,
+      price: spec.price,
+      cost: spec.cost,
+    });
+    if (!quoted.ok) return purchaseFail(quoted.error);
+    promo = quoted;
+    price = quoted.finalPrice;
+  }
+
+  const charge = await quoteCharge(user.sub, price, spec.useCashback);
   const balance = await getNairaBalance(user.sub);
   if (balance !== null && balance < charge.walletPart) {
     return purchaseFail(
@@ -125,7 +143,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
     service,
     title: spec.title,
     detail: spec.detail,
-    amount: spec.price,
+    amount: price,
     cost: spec.cost,
     networkId: spec.networkId,
     planId: spec.planId,
@@ -135,10 +153,29 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
   });
   if (!started) return purchaseFail("That purchase is already being processed. Check your history.");
 
+  if (promo) {
+    const PROMO_GONE = "That code is no longer available. Remove it and try again.";
+    let reserved: "ok" | "unavailable" = "unavailable";
+    try {
+      reserved = await reserveRedemption({
+        transactionId: reference,
+        promoId: promo.promoId,
+        customerId: user.sub,
+        discount: promo.discount,
+      });
+    } catch (error) {
+      console.error(`${tag} Could not reserve promo`, reference, error);
+    }
+    if (reserved !== "ok") {
+      await finishTransaction(reference, "failed", { reason: PROMO_GONE });
+      return purchaseFail(PROMO_GONE);
+    }
+  }
+
   const vars = {
     name: firstName(user.name),
     item: spec.title,
-    amount: formatNaira(spec.price),
+    amount: formatNaira(price),
     recipient: spec.recipient,
   };
 
@@ -238,7 +275,7 @@ export async function executePurchase(spec: PurchaseSpec): Promise<PurchaseResul
 
   if (outcome === "failed") {
     await finishTransaction(reference, "failed", { reason: copy.rejected, response });
-    const refunded = await refundAndMark(user.sub, spec.price, charge.cashbackUsed, reference);
+    const refunded = await refundAndMark(user.sub, price, charge.cashbackUsed, reference);
     after(() =>
       notify(user.sub, {
         id: `tx-${reference}`,

@@ -25,7 +25,7 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { networkId, typeId, amount, phone, reference, skipNetworkCheck, useCashback, pin } = input as Record<string, unknown>;
+  const { networkId, typeId, amount, phone, reference, skipNetworkCheck, useCashback, promoCode, pin } = input as Record<string, unknown>;
   if (
     typeof networkId !== "string" ||
     !networkId ||
@@ -78,5 +78,6 @@ export async function purchaseAirtime(input: unknown): Promise<PurchaseResult> {
     providerService: "airtime",
     providerVars,
     alternates,
+    promoCode: typeof promoCode === "string" && promoCode.trim() ? promoCode : null,
   });
 }

@@ -42,7 +42,7 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
   const user = await requireSpursUser();
   if (!input || typeof input !== "object") return purchaseFail(INVALID_PURCHASE);
 
-  const { planId, smartcard, phone, reference, useCashback, pin } = input as Record<string, unknown>;
+  const { planId, smartcard, phone, reference, useCashback, promoCode, pin } = input as Record<string, unknown>;
   if (typeof planId !== "string" || !planId || typeof reference !== "string" || !REFERENCE.test(reference)) {
     return purchaseFail(INVALID_PURCHASE);
   }
@@ -97,5 +97,6 @@ export async function purchaseCable(input: unknown): Promise<PurchaseResult> {
     providerService: "cable",
     providerVars,
     alternates,
+    promoCode: typeof promoCode === "string" && promoCode.trim() ? promoCode : null,
   });
 }

@@ -13,6 +13,8 @@ import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseData } from "@/app/dashboard/data/actions";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 import { PinDialog } from "@/components/dashboard/pin-dialog";
+import { PromoCodeField } from "@/components/dashboard/promo-code-field";
+import type { PromoPreview } from "@/app/dashboard/promo-actions";
 
 type Errors = { plan?: string; phone?: string };
 
@@ -55,6 +57,8 @@ export function DataPurchase({
   const [useCashback, setUseCashback] = useState(defaultUseCashback);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoPreview, setPromoPreview] = useState<PromoPreview | null>(null);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -62,8 +66,9 @@ export function DataPurchase({
   const plans = network ? network.plans.filter((plan) => plan.typeId === activeType) : [];
   const selected = plans.find((plan) => plan.id === planId) ?? null;
   const typeLabel = types.find((type) => type.id === activeType)?.label ?? "";
-  const short = selected !== null && balance !== null && selected.price > balance;
-  const walletPart = selected ? Math.max(0, selected.price - (useCashback ? Math.min(cashback, selected.price) : 0)) : 0;
+  const finalPrice = promoPreview?.ok ? promoPreview.finalPrice : selected?.price ?? null;
+  const short = finalPrice !== null && balance !== null && finalPrice > balance;
+  const walletPart = finalPrice === null ? 0 : Math.max(0, finalPrice - (useCashback ? Math.min(cashback, finalPrice) : 0));
   const shortWithCashback = selected !== null && balance !== null && walletPart > balance;
   const checkKey = `${phone}:${network?.id ?? ""}`;
   const skipCheck = bypassKey === checkKey;
@@ -112,6 +117,7 @@ export function DataPurchase({
           reference: referenceOverride ?? reference,
           skipNetworkCheck: skipCheck,
           useCashback,
+          promoCode,
           pin,
         });
         setResult(outcome);
@@ -240,6 +246,15 @@ export function DataPurchase({
         onSwitch={(id) => {
           chooseNetwork(id);
           setBypassKey("");
+        }}
+      />
+
+      <PromoCodeField
+        service="data"
+        price={selected?.price ?? null}
+        onChange={(code, final, preview) => {
+          setPromoCode(code);
+          setPromoPreview(preview);
         }}
       />
 

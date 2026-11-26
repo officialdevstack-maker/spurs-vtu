@@ -14,6 +14,8 @@ import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { purchaseAirtime } from "@/app/dashboard/airtime/actions";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 import { PinDialog } from "@/components/dashboard/pin-dialog";
+import { PromoCodeField } from "@/components/dashboard/promo-code-field";
+import type { PromoPreview } from "@/app/dashboard/promo-actions";
 
 type Errors = { amount?: string; phone?: string };
 
@@ -56,6 +58,8 @@ export function AirtimePurchase({
   const [useCashback, setUseCashback] = useState(defaultUseCashback);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoPreview, setPromoPreview] = useState<PromoPreview | null>(null);
 
   const network = networks.find((item) => item.id === networkId) ?? networks[0];
   const types = network?.types ?? [];
@@ -67,9 +71,10 @@ export function AirtimePurchase({
   const range = Number.isInteger(amountValue) ? findRange(ranges, amountValue) : null;
   const price = range ? airtimePrice(amountValue, range.discount) : null;
   const saving = price !== null ? amountValue - price : 0;
-  const short = price !== null && balance !== null && price > balance;
-  const walletPart = price === null ? 0 : Math.max(0, price - (useCashback ? Math.min(cashback, price) : 0));
-  const shortWithCashback = price !== null && balance !== null && walletPart > balance;
+  const finalPrice = promoPreview?.ok ? promoPreview.finalPrice : price;
+  const short = finalPrice !== null && balance !== null && finalPrice > balance;
+  const walletPart = finalPrice === null ? 0 : Math.max(0, finalPrice - (useCashback ? Math.min(cashback, finalPrice) : 0));
+  const shortWithCashback = finalPrice !== null && balance !== null && walletPart > balance;
   const lowest = ranges.length ? Math.min(...ranges.map((item) => item.min)) : 0;
   const highest = ranges.length ? Math.max(...ranges.map((item) => item.max)) : 0;
   const quick = QUICK_AMOUNTS.filter((value) => findRange(ranges, value));
@@ -133,6 +138,7 @@ export function AirtimePurchase({
             reference: referenceOverride ?? reference,
             skipNetworkCheck: skipCheck,
             useCashback,
+            promoCode,
             pin,
           });
         setResult(outcome);
@@ -273,6 +279,15 @@ export function AirtimePurchase({
         onSwitch={(id) => {
           chooseNetwork(id);
           setBypassKey("");
+        }}
+      />
+
+      <PromoCodeField
+        service="airtime"
+        price={price}
+        onChange={(code, final, preview) => {
+          setPromoCode(code);
+          setPromoPreview(preview);
         }}
       />
 

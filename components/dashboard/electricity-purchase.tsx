@@ -19,6 +19,8 @@ import { PHONE_PATTERN, groupPhone, normalizePhone } from "@/lib/phone";
 import { CashbackToggle } from "@/components/dashboard/cashback-toggle";
 import { MeterCheckNote, useMeterCheck } from "@/components/dashboard/meter-check";
 import { PinDialog } from "@/components/dashboard/pin-dialog";
+import { PromoCodeField } from "@/components/dashboard/promo-code-field";
+import type { PromoPreview } from "@/app/dashboard/promo-actions";
 
 const input =
   "h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition-colors placeholder:text-gray-400 focus-visible:ring-2 focus-visible:ring-[#12343B] dark:bg-[#10262B] dark:focus-visible:ring-[#F2B632]";
@@ -60,6 +62,8 @@ export function ElectricityPurchase({
   const { check, schedule, reset, verified } = useMeterCheck(canVerify);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [promoPreview, setPromoPreview] = useState<PromoPreview | null>(null);
 
   const disco = useMemo(() => discos.find((item) => item.id === discoId) ?? discos[0], [discos, discoId]);
   const amount = amountText === "" ? NaN : Number(amountText);
@@ -72,8 +76,9 @@ export function ElectricityPurchase({
   const phoneError = PHONE_PATTERN.test(phone) ? null : "Enter an 11-digit phone number, like 0803 123 4567.";
   const price = amountError ? null : electricityPrice(amount, disco.discount);
   const saving = price === null ? null : Math.round((amount - price) * 100) / 100;
-  const short = price !== null && balance !== null && balance < price;
-  const walletPart = price === null ? 0 : Math.max(0, price - (useCashback ? Math.min(cashback, price) : 0));
+  const finalPrice = promoPreview?.ok ? promoPreview.finalPrice : price;
+  const short = finalPrice !== null && balance !== null && balance < finalPrice;
+  const walletPart = finalPrice === null ? 0 : Math.max(0, finalPrice - (useCashback ? Math.min(cashback, finalPrice) : 0));
   const shortWithCashback = price !== null && balance !== null && balance < walletPart;
   const hasPackageRate = disco.discount > disco.standardDiscount;
   const quickAmounts = QUICK_AMOUNTS.filter((value) => value >= disco.min && value <= disco.max);
@@ -97,6 +102,7 @@ export function ElectricityPurchase({
           phone,
           reference,
           useCashback,
+          promoCode,
           pin,
         });
         if (!outcome.ok && outcome.pin) {
@@ -254,6 +260,15 @@ export function ElectricityPurchase({
             onChange={setUseCashback}
           />
         )}
+
+        <PromoCodeField
+          service="electricity"
+          price={price}
+          onChange={(code, final, preview) => {
+            setPromoCode(code);
+            setPromoPreview(preview);
+          }}
+        />
 
         <button
           type="submit"
