@@ -1,5 +1,5 @@
-import { FormPageSkeleton } from "@/components/ui/skeletons";
+import { ListPageSkeleton } from "@/components/ui/skeletons";
 
 export default function Loading() {
-  return <FormPageSkeleton label="Loading message templates" />;
+  return <ListPageSkeleton label="Loading message templates" />;
 }

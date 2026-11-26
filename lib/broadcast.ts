@@ -1,5 +1,5 @@
 import "server-only";
-import { renderTemplate, type BroadcastResults, type Channel, type Recipient } from "@/lib/admin/announcements";
+import { renderTemplate, type BroadcastResults, type Channel } from "@/lib/admin/announcements";
 import {
   claimBroadcast,
   finishBroadcast,

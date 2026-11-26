@@ -42,7 +42,7 @@ export function WelcomeManager({ popup }: { popup: WelcomePopup }) {
         <div>
           <label htmlFor="welcome-body" className="mb-2 block text-sm font-medium">Message</label>
           <textarea id="welcome-body" value={body} maxLength={POPUP_BODY_LIMIT} rows={5} onChange={(e) => setBody(e.target.value)} className={`${field} py-3`} />
-          <p className="mt-1 text-xs text-gray-600 dark:text-[#9FB3B7]">{body.length}/{POPUP_BODY_LIMIT}. Use {"{name}"} for the customer's first name and {"{username}"} for their username.</p>
+          <p className="mt-1 text-xs text-gray-600 dark:text-[#9FB3B7]">{body.length}/{POPUP_BODY_LIMIT}. Use {"{name}"} for the customer&apos;s first name and {"{username}"} for their username.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

@@ -1,6 +1,18 @@
 export type PurchaseService = "airtime" | "data" | "cable" | "electricity";
 export type PurchaseStatus = "success" | "pending" | "failed";
-export type PurchaseTemplate = { service: PurchaseService; status: PurchaseStatus; message: string };
+export type PurchaseTemplate = {
+  id: string;
+  name: string;
+  service: PurchaseService;
+  status: PurchaseStatus;
+  message: string;
+  /** The live template for its service and status. Only one can be live. */
+  active: boolean;
+};
+export type PurchaseTemplateFields = Omit<PurchaseTemplate, "id">;
+
+export const NAME_LIMIT = 60;
+export const MAX_TEMPLATES = 100;
 
 export const PURCHASE_SERVICES: { id: PurchaseService; label: string }[] = [
   { id: "airtime", label: "Airtime" },
