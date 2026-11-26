@@ -50,9 +50,10 @@ export async function reviewFraudFlag(
   if (text.length < 3 || text.length > 200) return fail("Add a note of 3 to 200 characters.");
 
   try {
+    let customerId: string | null = null;
     if (suspend && resolution === "confirmed") {
       const { owner } = await getAdminAccess();
-      const customerId = await reviewFlag(id, resolution, text, admin.sub);
+      customerId = await reviewFlag(id, resolution, text, admin.sub);
       if (!customerId) return fail("That flag was already reviewed.");
       if (customerId === admin.sub) return fail("You can't suspend your own account.");
       if (!owner && (await isStaffMember(customerId))) return fail("Only an owner can suspend a staff account.");
@@ -60,11 +61,13 @@ export async function reviewFraudFlag(
       await recordAudit(admin, { action: "customer.suspend", target: customerId, summary: "Suspended a customer after a fraud review" });
       await recordAudit(admin, { action: "fraud.flag.confirmed", target: id, summary: `Fraud flag confirmed: ${text}`, meta: { suspended: true } });
     } else {
-      if (!(await reviewFlag(id, resolution, text, admin.sub))) return fail("That flag was already reviewed.");
+      customerId = await reviewFlag(id, resolution, text, admin.sub);
+      if (!customerId) return fail("That flag was already reviewed.");
       await recordAudit(admin, { action: `fraud.flag.${resolution}`, target: id, summary: `Fraud flag ${resolution}: ${text}` });
     }
     revalidatePath(FRAUD_PATH);
     revalidatePath("/admin/users/list");
+    if (customerId) revalidatePath(`/admin/users/list/${customerId}`);
     return { ok: true };
   } catch (error) {
     console.error("[fraud]", error);

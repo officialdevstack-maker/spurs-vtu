@@ -7,7 +7,7 @@ import { HISTORY_PAGE_SIZE, parseHistoryParams, type HistoryParams } from "@/lib
 
 export const metadata: Metadata = { title: "Transaction history | Spur VTU" };
 
-const PATH = "/admin/transactions";
+const PATH = "/admin/transactions/list";
 
 export default async function TransactionHistoryPage({ searchParams }: { searchParams: Promise<HistoryParams> }) {
   await connection();

@@ -1,4 +1,4 @@
-alter table api_rate_limits drop constraint if exists api_rate_limits_key_id_fkey;
+alter table vtu_api_rate_limits drop constraint if exists vtu_api_rate_limits_key_id_fkey;
 
 create table if not exists api_webhooks (
   customer_id text primary key references customers(id) on delete cascade,

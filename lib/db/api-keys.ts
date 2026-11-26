@@ -13,7 +13,7 @@ export async function listApiKeys(customerId: string): Promise<ApiKeyRecord[]> {
     created_at: Date;
   }>(
     `select id, name, prefix, scopes, ip_allowlist, last_used_at, created_at
-     from api_keys where customer_id = $1 and revoked_at is null
+     from vtu_api_keys where customer_id = $1 and revoked_at is null
      order by created_at desc`,
     [customerId],
   );
@@ -42,7 +42,7 @@ export async function createApiKey(input: {
     await client.query("begin");
     await client.query("select 1 from customers where id = $1 for update", [input.customerId]);
     const active = await client.query<{ n: string }>(
-      "select count(*)::text as n from api_keys where customer_id = $1 and revoked_at is null",
+      "select count(*)::text as n from vtu_api_keys where customer_id = $1 and revoked_at is null",
       [input.customerId],
     );
     if (Number(active.rows[0].n) >= MAX_ACTIVE_KEYS) {
@@ -50,7 +50,7 @@ export async function createApiKey(input: {
       return false;
     }
     await client.query(
-      `insert into api_keys (id, customer_id, name, prefix, key_hash, scopes, ip_allowlist)
+      `insert into vtu_api_keys (id, customer_id, name, prefix, key_hash, scopes, ip_allowlist)
        values ($1, $2, $3, $4, $5, $6, $7)`,
       [input.id, input.customerId, input.name, input.prefix, input.keyHash, input.scopes, input.ipAllowlist],
     );
@@ -66,7 +66,7 @@ export async function createApiKey(input: {
 
 export async function revokeApiKey(customerId: string, id: string): Promise<boolean> {
   const { rowCount } = await getPool().query(
-    "update api_keys set revoked_at = now() where id = $1 and customer_id = $2 and revoked_at is null",
+    "update vtu_api_keys set revoked_at = now() where id = $1 and customer_id = $2 and revoked_at is null",
     [id, customerId],
   );
   return (rowCount ?? 0) > 0;
@@ -93,7 +93,7 @@ export async function findApiKeyByHash(keyHash: string): Promise<ApiKeyAuth | nu
     status: string;
   }>(
     `select k.id, k.customer_id, c.name, c.package_id, k.scopes, k.ip_allowlist, c.status
-     from api_keys k join customers c on c.id = k.customer_id
+     from vtu_api_keys k join customers c on c.id = k.customer_id
      where k.key_hash = $1 and k.revoked_at is null`,
     [keyHash],
   );
@@ -112,20 +112,20 @@ export async function findApiKeyByHash(keyHash: string): Promise<ApiKeyAuth | nu
 }
 
 export async function touchApiKey(id: string): Promise<void> {
-  await getPool().query("update api_keys set last_used_at = now() where id = $1", [id]);
+  await getPool().query("update vtu_api_keys set last_used_at = now() where id = $1", [id]);
 }
 
 export async function hitRateLimit(keyId: string, windowSeconds: number): Promise<number> {
   const pool = getPool();
   const { rows } = await pool.query<{ count: number }>(
-    `insert into api_rate_limits (key_id, window_start, count)
+    `insert into vtu_api_rate_limits (key_id, window_start, count)
      values ($1, to_timestamp(floor(extract(epoch from now()) / $2::int) * $2::int), 1)
-     on conflict (key_id, window_start) do update set count = api_rate_limits.count + 1
+     on conflict (key_id, window_start) do update set count = vtu_api_rate_limits.count + 1
      returning count`,
     [keyId, windowSeconds],
   );
   if (Math.random() < 0.01) {
-    await pool.query("delete from api_rate_limits where window_start < now() - interval '1 hour'").catch(() => undefined);
+    await pool.query("delete from vtu_api_rate_limits where window_start < now() - interval '1 hour'").catch(() => undefined);
   }
   return rows[0].count;
 }

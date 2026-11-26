@@ -173,7 +173,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             </ul>
           )}
           <Link
-            href={`/admin/transactions/list?q=${encodeURIComponent(customer.username ?? customer.email ?? "")}`}
+            href={`/admin/transactions/list?q=${encodeURIComponent(customer.username ?? customer.email ?? customer.id)}`}
             className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
           >
             See full history
