@@ -52,12 +52,103 @@ function CredentialField({
   );
 }
 
+function DepositFeeFields({
+  idPrefix,
+  feeType,
+  feeValue,
+  minimumDepositKobo,
+}: {
+  idPrefix: string;
+  feeType: "flat" | "percentage";
+  feeValue: number;
+  minimumDepositKobo: number;
+}) {
+  return (
+    <fieldset className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+      <legend className="px-1 text-sm font-semibold">Deposit fee and minimum</legend>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field id={`${idPrefix}-fee-type`} label="Fee type">
+          <select
+            id={`${idPrefix}-fee-type`}
+            name="depositFeeType"
+            defaultValue={feeType}
+            className={inputClass()}
+          >
+            <option value="flat">Flat amount (₦)</option>
+            <option value="percentage">Percentage (%)</option>
+          </select>
+        </Field>
+        <Field id={`${idPrefix}-fee-value`} label="Fee value (₦ or %)">
+          <input
+            id={`${idPrefix}-fee-value`}
+            name="depositFeeValue"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            defaultValue={feeValue}
+            className={inputClass()}
+          />
+        </Field>
+        <Field id={`${idPrefix}-minimum`} label="Minimum deposit (₦)">
+          <input
+            id={`${idPrefix}-minimum`}
+            name="minimumDeposit"
+            type="number"
+            inputMode="decimal"
+            min="100"
+            max="1000000"
+            step="0.01"
+            defaultValue={minimumDepositKobo / 100}
+            className={inputClass()}
+          />
+        </Field>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
+        Fees are deducted from the received deposit. Deposits below the minimum, or deposits fully consumed by the fee,
+        remain pending and are flagged in transaction history for review.
+      </p>
+    </fieldset>
+  );
+}
+
+function WebhookUrl({ id, url }: { id: string; url: string }) {
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Webhook URL copied");
+    } catch {
+      toast.error("Could not copy. Select the URL and copy it manually.");
+    }
+  }
+
+  return (
+    <Field id={id} label="Incoming payment webhook URL" hint="Copy this URL into the provider’s webhook settings.">
+      <div className="flex gap-2">
+        <input
+          id={id}
+          type="url"
+          readOnly
+          value={url}
+          onFocus={(event) => event.currentTarget.select()}
+          className={inputClass()}
+        />
+        <button type="button" onClick={copy} className={btnPrimary}>
+          Copy
+        </button>
+      </div>
+    </Field>
+  );
+}
+
 export function PaymentProvidersManager({
   settings,
   paymentPointSettings,
+  webhookUrls,
 }: {
   settings: PaymentProviderSettings | null;
   paymentPointSettings: PaymentPointProviderSettings | null;
+  webhookUrls: { flutterwave: string; paymentpoint: string };
 }) {
   const router = useRouter();
   const [activeProvider, setActiveProvider] = useState<"flutterwave" | "paymentpoint">("flutterwave");
@@ -77,6 +168,9 @@ export function PaymentProvidersManager({
       publicKey: form.get("publicKey"),
       secretKey: form.get("secretKey"),
       webhookHash: form.get("webhookHash"),
+      depositFeeType: form.get("depositFeeType"),
+      depositFeeValue: form.get("depositFeeValue"),
+      minimumDeposit: form.get("minimumDeposit"),
       enabled,
     };
     setError(null);
@@ -115,6 +209,9 @@ export function PaymentProvidersManager({
       apiSecret: form.get("apiSecret"),
       businessId: form.get("businessId"),
       webhookSecret: form.get("webhookSecret"),
+      depositFeeType: form.get("depositFeeType"),
+      depositFeeValue: form.get("depositFeeValue"),
+      minimumDeposit: form.get("minimumDeposit"),
       enabled: paymentPointEnabled,
     };
     setError(null);
@@ -248,6 +345,14 @@ export function PaymentProvidersManager({
             hint="Enter the same secret hash configured for the Flutterwave webhook."
           />
 
+          <WebhookUrl id="flutterwave-webhook-url" url={webhookUrls.flutterwave} />
+          <DepositFeeFields
+            idPrefix="flutterwave"
+            feeType={settings?.depositFeeType ?? "flat"}
+            feeValue={settings?.depositFeeValue ?? 0}
+            minimumDepositKobo={settings?.minimumDepositKobo ?? 10_000}
+          />
+
           <div className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
             <Switch
               checked={enabled}
@@ -329,6 +434,14 @@ export function PaymentProvidersManager({
             hint="Enter a separate signing key if PaymentPoint provided one. Otherwise, the API secret is used."
           />
 
+          <WebhookUrl id="paymentpoint-webhook-url" url={webhookUrls.paymentpoint} />
+          <DepositFeeFields
+            idPrefix="paymentpoint"
+            feeType={paymentPointSettings?.depositFeeType ?? "flat"}
+            feeValue={paymentPointSettings?.depositFeeValue ?? 0}
+            minimumDepositKobo={paymentPointSettings?.minimumDepositKobo ?? 10_000}
+          />
+
           <div className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
             <Switch
               checked={paymentPointEnabled}
@@ -366,11 +479,7 @@ export function PaymentProvidersManager({
 
       <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
         Set <code className="font-[family-name:var(--font-geist-mono)]">PROVIDER_SECRET_KEY</code> in the server
-        environment before saving credentials. Configure <code className="font-[family-name:var(--font-geist-mono)]">
-          /api/webhooks/flutterwave
-        </code> and <code className="font-[family-name:var(--font-geist-mono)]">
-          /api/webhooks/paymentpoint
-        </code> as the webhook URLs in the corresponding provider dashboards.
+        environment before saving credentials.
       </p>
 
       {confirmDelete === "flutterwave" && (

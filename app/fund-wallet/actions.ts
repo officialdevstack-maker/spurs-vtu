@@ -22,6 +22,7 @@ import {
   createPaymentPointTemporaryAccount,
   PaymentPointApiError,
 } from "@/lib/paymentpoint";
+import { getPaymentPointProviderSettings, getPaymentProviderSettings } from "@/lib/db/payment-providers";
 import { requireSpursUser } from "@/lib/spurs";
 
 export type FundingActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -185,16 +186,19 @@ export async function createPaymentPointTemporaryFundingAccount(
   amountInput: string,
 ): Promise<FundingActionResult<FundingAccountResult & { amount: number; reference: string }>> {
   const user = await requireSpursUser();
+  const providerSettings = await getPaymentPointProviderSettings();
+  const minimumDepositKobo = providerSettings?.minimumDepositKobo ?? 10_000;
+  const minimumAmount = minimumDepositKobo / 100;
   const amount = Number(amountInput);
   const amountKobo = Math.round(amount * 100);
   if (
     !/^\d{1,7}(?:\.\d{1,2})?$/.test(amountInput) ||
     !Number.isFinite(amount) ||
     !Number.isSafeInteger(amountKobo) ||
-    amountKobo < 10_000 ||
+    amountKobo < minimumDepositKobo ||
     amountKobo > 100_000_000
   ) {
-    return { ok: false, error: "Enter a funding amount from ₦100 to ₦1,000,000." };
+    return { ok: false, error: `Enter a funding amount from ₦${minimumAmount.toFixed(2)} to ₦1,000,000.` };
   }
   if (!user.email || (!user.name && !user.username)) {
     return { ok: false, error: "Add your name and email to your Spurs account before creating an account." };
@@ -268,16 +272,19 @@ export async function createTemporaryFundingAccount(
   amountInput: string,
 ): Promise<FundingActionResult<FundingAccountResult & { amount: number; reference: string }>> {
   const user = await requireSpursUser();
+  const providerSettings = await getPaymentProviderSettings();
+  const minimumDepositKobo = providerSettings?.minimumDepositKobo ?? 10_000;
+  const minimumAmount = minimumDepositKobo / 100;
   const amount = Number(amountInput);
   const amountKobo = Math.round(amount * 100);
   if (
     !/^\d{1,7}(?:\.\d{1,2})?$/.test(amountInput) ||
     !Number.isFinite(amount) ||
     !Number.isSafeInteger(amountKobo) ||
-    amountKobo < 10_000 ||
+    amountKobo < minimumDepositKobo ||
     amountKobo > 100_000_000
   ) {
-    return { ok: false, error: "Enter a funding amount from ₦100 to ₦1,000,000." };
+    return { ok: false, error: `Enter a funding amount from ₦${minimumAmount.toFixed(2)} to ₦1,000,000.` };
   }
   if (!user.email) return { ok: false, error: "Add an email address to your Spurs account first." };
 

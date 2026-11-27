@@ -1,5 +1,6 @@
 import "server-only";
 import { getPool } from "@/lib/db";
+import type { PoolClient } from "pg";
 
 type WalletChange = {
   customerId: string;
@@ -13,6 +14,69 @@ function assertAmount(amountKobo: number): void {
   if (!Number.isSafeInteger(amountKobo) || amountKobo <= 0) {
     throw new Error("Wallet amounts must be positive whole kobo.");
   }
+}
+
+type DepositProvider = "flutterwave" | "paymentpoint";
+type DepositPolicy = {
+  feeType: "flat" | "percentage";
+  feeValue: string;
+  minimumDepositKobo: bigint;
+};
+
+async function getDepositPolicy(client: PoolClient, provider: DepositProvider): Promise<DepositPolicy> {
+  const { rows } = await client.query<{
+    deposit_fee_type: "flat" | "percentage";
+    deposit_fee_value: string;
+    minimum_deposit_kobo: string;
+  }>(
+    `select deposit_fee_type, deposit_fee_value::text, minimum_deposit_kobo::text
+     from payment_providers where id = $1 for share`,
+    [provider],
+  );
+  const row = rows[0];
+  return row
+    ? {
+        feeType: row.deposit_fee_type,
+        feeValue: row.deposit_fee_value,
+        minimumDepositKobo: BigInt(row.minimum_deposit_kobo),
+      }
+    : { feeType: "flat", feeValue: "0.00", minimumDepositKobo: 10_000n };
+}
+
+function decimalToMinorUnits(value: string): bigint {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) throw new Error("Saved deposit fee is invalid.");
+  return BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
+}
+
+function calculateDepositFeeKobo(amountKobo: number, policy: DepositPolicy): bigint {
+  const amount = BigInt(amountKobo);
+  const feeValue = decimalToMinorUnits(policy.feeValue);
+  if (policy.feeType === "flat") return feeValue;
+  return (amount * feeValue + 5_000n) / 10_000n;
+}
+
+function depositReviewReason(
+  amountKobo: number,
+  expectedAmountKobo: string | null,
+  feeKobo: bigint,
+  minimumDepositKobo: bigint,
+): string | null {
+  if (expectedAmountKobo !== null && BigInt(expectedAmountKobo) !== BigInt(amountKobo)) {
+    return "Manual review required: received amount did not match the requested deposit.";
+  }
+  if (BigInt(amountKobo) < minimumDepositKobo) {
+    return "Manual review required: received amount was below the provider minimum.";
+  }
+  if (feeKobo >= BigInt(amountKobo)) {
+    return "Manual review required: configured fee would consume the entire deposit.";
+  }
+  return null;
+}
+
+function depositHistoryDetail(isTemporary: boolean, feeKobo: bigint): string {
+  const detail = isTemporary ? "Temporary bank transfer" : "Bank transfer";
+  return feeKobo > 0n ? `${detail} · Deposit fee ₦${(Number(feeKobo) / 100).toFixed(2)}` : detail;
 }
 
 export async function getWalletBalanceKobo(customerId: string): Promise<bigint> {
@@ -340,7 +404,7 @@ export async function createPaymentPointFundingIntent(input: {
     if (!row) throw new Error("PaymentPoint funding intent was not created.");
     await client.query(
       `insert into transactions (id, customer_id, service, title, detail, amount, direction, status)
-       values ($1, $2, 'wallet', 'Wallet funding', 'PaymentPoint temporary account', $3, 'credit', 'pending')`,
+       values ($1, $2, 'wallet', 'Wallet funding', 'Temporary transfer account', $3, 'credit', 'pending')`,
       [input.reference, input.customerId, input.amountKobo / 100],
     );
     await client.query("commit");
@@ -387,7 +451,7 @@ export async function savePaymentPointFundingIntentAccount(input: {
     const transaction = await client.query(
       `update transactions set detail = $2, updated_at = now()
        where id = $1 and customer_id = $3 and status = 'pending'`,
-      [input.reference, `PaymentPoint temporary account ${input.accountNumber}`, input.customerId],
+      [input.reference, `Temporary transfer account ${input.accountNumber}`, input.customerId],
     );
     if ((transaction.rowCount ?? 0) !== 1) throw new Error("PaymentPoint funding transaction was not found.");
     await client.query("commit");
@@ -440,7 +504,7 @@ export async function getRecentPaymentPointFundingIntents(customerId: string, li
   }>(
     `select reference, amount_kobo::text, account_number, bank_name, status
      from paymentpoint_funding_intents
-     where customer_id = $1 and status in ('creating', 'pending')
+     where customer_id = $1 and status in ('creating', 'pending', 'review')
      order by created_at desc limit $2`,
     [customerId, limit],
   );
@@ -459,7 +523,7 @@ export type FundingIntent = {
   amountKobo: number;
   accountNumber: string | null;
   bankName: string | null;
-  status: "creating" | "pending" | "completed" | "failed";
+  status: "creating" | "pending" | "completed" | "failed" | "review";
   expiresAt: string | null;
 };
 
@@ -507,7 +571,7 @@ export async function createFundingIntent(input: {
     if (!row) throw new Error("Funding intent was not created.");
     await client.query(
       `insert into transactions (id, customer_id, service, title, detail, amount, direction, status)
-       values ($1, $2, 'wallet', 'Wallet funding', 'Flutterwave virtual account', $3, 'credit', 'pending')`,
+       values ($1, $2, 'wallet', 'Wallet funding', 'Temporary transfer account', $3, 'credit', 'pending')`,
       [input.reference, input.customerId, input.amountKobo / 100],
     );
     await client.query("commit");
@@ -574,7 +638,7 @@ export async function getRecentFundingIntents(customerId: string, limit = 3): Pr
   }>(
     `select reference, amount_kobo::text, account_number, bank_name, status, expires_at
      from flutterwave_funding_intents
-     where customer_id = $1 and status in ('creating', 'pending')
+     where customer_id = $1 and status in ('creating', 'pending', 'review')
      order by created_at desc limit $2`,
     [customerId, limit],
   );
@@ -585,7 +649,7 @@ export async function applyFlutterwavePayment(input: {
   transactionId: string;
   reference: string;
   amountKobo: number;
-}): Promise<"applied" | "duplicate" | "not_found"> {
+}): Promise<"applied" | "duplicate" | "not_found" | "needs_review"> {
   assertAmount(input.amountKobo);
   const client = await getPool().connect();
   try {
@@ -626,10 +690,50 @@ export async function applyFlutterwavePayment(input: {
       await client.query("rollback");
       return "not_found";
     }
-    if (intent.rows[0] && BigInt(intent.rows[0].amount_kobo) !== BigInt(input.amountKobo)) {
-      await client.query("rollback");
-      throw new Error("Flutterwave temporary funding amount does not match the intent.");
+
+    const policy = await getDepositPolicy(client, "flutterwave");
+    const feeKobo = calculateDepositFeeKobo(input.amountKobo, policy);
+    const reviewReason = depositReviewReason(
+      input.amountKobo,
+      intent.rows[0]?.amount_kobo ?? null,
+      feeKobo,
+      policy.minimumDepositKobo,
+    );
+    const historyId = intent.rows[0] ? input.reference : `flw-${input.transactionId}`;
+    const detail = depositHistoryDetail(!!intent.rows[0], feeKobo);
+
+    if (reviewReason) {
+      await client.query(
+        `insert into flutterwave_payments
+           (transaction_id, reference, customer_id, amount_kobo, deposit_fee_kobo, review_required)
+         values ($1, $2, $3, $4, $5, true)`,
+        [input.transactionId, input.reference, customerId, input.amountKobo, feeKobo.toString()],
+      );
+      const history = await client.query(
+        `insert into transactions
+           (id, customer_id, service, title, detail, amount, direction, status, failure_reason)
+         values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'pending', $5)
+         on conflict (id) do update
+           set detail = excluded.detail, amount = excluded.amount, status = 'pending',
+               failure_reason = excluded.failure_reason, updated_at = now()
+         where transactions.customer_id = excluded.customer_id
+           and transactions.direction = 'credit'
+         returning id`,
+        [historyId, customerId, detail, input.amountKobo / 100, reviewReason],
+      );
+      if (!history.rows[0]) throw new Error("Flutterwave review item conflicts with an existing transaction.");
+      if (intent.rows[0]) {
+        await client.query(
+          `update flutterwave_funding_intents set status = 'review', updated_at = now()
+           where reference = $1`,
+          [input.reference],
+        );
+      }
+      await client.query("commit");
+      return "needs_review";
     }
+
+    const netAmountKobo = BigInt(input.amountKobo) - feeKobo;
     await client.query(
       `insert into vtu_wallets (customer_id) values ($1)
        on conflict (customer_id) do nothing`,
@@ -643,7 +747,7 @@ export async function applyFlutterwavePayment(input: {
        values ($1, $2, 'credit', $3, 'flutterwave')
        on conflict (reference) do nothing
        returning reference`,
-      [reference, customerId, input.amountKobo],
+      [reference, customerId, netAmountKobo.toString()],
     );
     if ((ledger.rowCount ?? 0) !== 1) {
       throw new Error("Flutterwave payment conflicts with an existing wallet entry.");
@@ -651,24 +755,25 @@ export async function applyFlutterwavePayment(input: {
     await client.query(
       `update vtu_wallets set balance_kobo = balance_kobo + $2, updated_at = now()
        where customer_id = $1`,
-      [customerId, input.amountKobo],
+      [customerId, netAmountKobo.toString()],
     );
     await client.query(
-      `insert into flutterwave_payments (transaction_id, reference, customer_id, amount_kobo)
-       values ($1, $2, $3, $4)`,
-      [input.transactionId, input.reference, customerId, input.amountKobo],
+      `insert into flutterwave_payments
+         (transaction_id, reference, customer_id, amount_kobo, deposit_fee_kobo, review_required)
+       values ($1, $2, $3, $4, $5, false)`,
+      [input.transactionId, input.reference, customerId, input.amountKobo, feeKobo.toString()],
     );
-    const historyId = intent.rows[0] ? input.reference : `flw-${input.transactionId}`;
     const history = await client.query(
       `insert into transactions
-         (id, customer_id, service, title, detail, amount, direction, status)
-       values ($1, $2, 'wallet', 'Wallet funding', 'Flutterwave bank transfer', $3, 'credit', 'success')
+         (id, customer_id, service, title, detail, amount, direction, status, failure_reason)
+       values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'success', null)
        on conflict (id) do update
-         set detail = 'Flutterwave bank transfer', amount = excluded.amount, status = 'success', updated_at = now()
+         set detail = excluded.detail, amount = excluded.amount, status = 'success',
+             failure_reason = null, updated_at = now()
        where transactions.customer_id = excluded.customer_id
          and transactions.direction = 'credit'
        returning id`,
-      [historyId, customerId, input.amountKobo / 100],
+      [historyId, customerId, detail, Number(netAmountKobo) / 100],
     );
     if (!history.rows[0]) throw new Error("Flutterwave payment conflicts with an existing transaction.");
     if (intent.rows[0]) {
@@ -697,7 +802,7 @@ export async function applyPaymentPointPayment(input: {
   transactionId: string;
   accountNumber: string;
   amountKobo: number;
-}): Promise<"applied" | "duplicate" | "not_found"> {
+}): Promise<"applied" | "duplicate" | "not_found" | "needs_review"> {
   assertAmount(input.amountKobo);
   const client = await getPool().connect();
   try {
@@ -764,10 +869,6 @@ export async function applyPaymentPointPayment(input: {
       await client.query("rollback");
       return "not_found";
     }
-    if (intent.rows[0] && BigInt(intent.rows[0].amount_kobo) !== BigInt(input.amountKobo)) {
-      throw new Error("PaymentPoint temporary funding amount does not match the intent.");
-    }
-
     const concurrentPayment = await client.query<{
       customer_id: string;
       account_number: string;
@@ -790,6 +891,49 @@ export async function applyPaymentPointPayment(input: {
       return "duplicate";
     }
 
+    const policy = await getDepositPolicy(client, "paymentpoint");
+    const feeKobo = calculateDepositFeeKobo(input.amountKobo, policy);
+    const reviewReason = depositReviewReason(
+      input.amountKobo,
+      intent.rows[0]?.amount_kobo ?? null,
+      feeKobo,
+      policy.minimumDepositKobo,
+    );
+    const historyId = intent.rows[0]?.reference ?? `pp-${input.transactionId}`;
+    const detail = depositHistoryDetail(!!intent.rows[0], feeKobo);
+
+    if (reviewReason) {
+      await client.query(
+        `insert into paymentpoint_payments
+           (transaction_id, customer_id, account_number, amount_kobo, deposit_fee_kobo, review_required)
+         values ($1, $2, $3, $4, $5, true)`,
+        [input.transactionId, customerId, input.accountNumber, input.amountKobo, feeKobo.toString()],
+      );
+      const history = await client.query(
+        `insert into transactions
+           (id, customer_id, service, title, detail, amount, direction, status, failure_reason)
+         values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'pending', $5)
+         on conflict (id) do update
+           set detail = excluded.detail, amount = excluded.amount, status = 'pending',
+               failure_reason = excluded.failure_reason, updated_at = now()
+         where transactions.customer_id = excluded.customer_id
+           and transactions.direction = 'credit'
+         returning id`,
+        [historyId, customerId, detail, input.amountKobo / 100, reviewReason],
+      );
+      if (!history.rows[0]) throw new Error("PaymentPoint review item conflicts with an existing transaction.");
+      if (intent.rows[0]) {
+        await client.query(
+          `update paymentpoint_funding_intents set status = 'review', updated_at = now()
+           where reference = $1 and status = 'pending'`,
+          [intent.rows[0].reference],
+        );
+      }
+      await client.query("commit");
+      return "needs_review";
+    }
+
+    const netAmountKobo = BigInt(input.amountKobo) - feeKobo;
     await client.query(
       `insert into vtu_wallets (customer_id) values ($1)
        on conflict (customer_id) do nothing`,
@@ -803,7 +947,7 @@ export async function applyPaymentPointPayment(input: {
        values ($1, $2, 'credit', $3, 'paymentpoint')
        on conflict (reference) do nothing
        returning reference`,
-      [reference, customerId, input.amountKobo],
+      [reference, customerId, netAmountKobo.toString()],
     );
     if ((ledger.rowCount ?? 0) !== 1) {
       throw new Error("PaymentPoint payment conflicts with an existing wallet entry.");
@@ -811,26 +955,25 @@ export async function applyPaymentPointPayment(input: {
     await client.query(
       `update vtu_wallets set balance_kobo = balance_kobo + $2, updated_at = now()
        where customer_id = $1`,
-      [customerId, input.amountKobo],
+      [customerId, netAmountKobo.toString()],
     );
     await client.query(
-      `insert into paymentpoint_payments (transaction_id, customer_id, account_number, amount_kobo)
-       values ($1, $2, $3, $4)`,
-      [input.transactionId, customerId, input.accountNumber, input.amountKobo],
+      `insert into paymentpoint_payments
+         (transaction_id, customer_id, account_number, amount_kobo, deposit_fee_kobo, review_required)
+       values ($1, $2, $3, $4, $5, false)`,
+      [input.transactionId, customerId, input.accountNumber, input.amountKobo, feeKobo.toString()],
     );
-    const historyId = intent.rows[0]?.reference ?? `pp-${input.transactionId}`;
-    const detail = intent.rows[0] ? "PaymentPoint temporary bank transfer" : "PaymentPoint bank transfer";
     const history = await client.query(
       `insert into transactions
-         (id, customer_id, service, title, detail, amount, direction, status)
-       values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'success')
+         (id, customer_id, service, title, detail, amount, direction, status, failure_reason)
+       values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'success', null)
        on conflict (id) do update
          set detail = excluded.detail, amount = excluded.amount,
-             status = 'success', updated_at = now()
+             status = 'success', failure_reason = null, updated_at = now()
        where transactions.customer_id = excluded.customer_id
          and transactions.direction = 'credit'
        returning id`,
-      [historyId, customerId, detail, input.amountKobo / 100],
+      [historyId, customerId, detail, Number(netAmountKobo) / 100],
     );
     if (!history.rows[0]) throw new Error("PaymentPoint payment conflicts with an existing transaction.");
     if (intent.rows[0]) {

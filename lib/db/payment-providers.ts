@@ -9,6 +9,9 @@ export type PaymentProviderSettings = {
   hasPublicKey: boolean;
   hasSecretKey: boolean;
   hasWebhookHash: boolean;
+  depositFeeType: "flat" | "percentage";
+  depositFeeValue: number;
+  minimumDepositKobo: number;
 };
 
 export type PaymentPointProviderSettings = {
@@ -19,6 +22,9 @@ export type PaymentPointProviderSettings = {
   hasApiSecret: boolean;
   hasBusinessId: boolean;
   hasWebhookSecret: boolean;
+  depositFeeType: "flat" | "percentage";
+  depositFeeValue: number;
+  minimumDepositKobo: number;
 };
 
 export type FlutterwaveCredentials = {
@@ -42,11 +48,15 @@ export async function getPaymentProviderSettings(): Promise<PaymentProviderSetti
     has_public_key: boolean;
     has_secret_key: boolean;
     has_webhook_hash: boolean;
+    deposit_fee_type: "flat" | "percentage";
+    deposit_fee_value: string;
+    minimum_deposit_kobo: string;
   }>(
     `select id, name, enabled,
             public_key_enc is not null as has_public_key,
             secret_key_enc is not null as has_secret_key,
-            webhook_hash_enc is not null as has_webhook_hash
+            webhook_hash_enc is not null as has_webhook_hash,
+            deposit_fee_type, deposit_fee_value::text, minimum_deposit_kobo::text
      from payment_providers where id = 'flutterwave'`,
   );
   const row = rows[0];
@@ -58,6 +68,9 @@ export async function getPaymentProviderSettings(): Promise<PaymentProviderSetti
         hasPublicKey: row.has_public_key,
         hasSecretKey: row.has_secret_key,
         hasWebhookHash: row.has_webhook_hash,
+        depositFeeType: row.deposit_fee_type,
+        depositFeeValue: Number(row.deposit_fee_value),
+        minimumDepositKobo: Number(row.minimum_deposit_kobo),
       }
     : null;
 }
@@ -92,12 +105,16 @@ export async function getPaymentPointProviderSettings(): Promise<PaymentPointPro
     has_api_secret: boolean;
     has_business_id: boolean;
     has_webhook_secret: boolean;
+    deposit_fee_type: "flat" | "percentage";
+    deposit_fee_value: string;
+    minimum_deposit_kobo: string;
   }>(
     `select id, name, enabled,
             public_key_enc is not null as has_api_key,
             secret_key_enc is not null as has_api_secret,
             business_id_enc is not null as has_business_id,
-            webhook_hash_enc is not null as has_webhook_secret
+            webhook_hash_enc is not null as has_webhook_secret,
+            deposit_fee_type, deposit_fee_value::text, minimum_deposit_kobo::text
      from payment_providers where id = 'paymentpoint'`,
   );
   const row = rows[0];
@@ -110,6 +127,9 @@ export async function getPaymentPointProviderSettings(): Promise<PaymentPointPro
         hasApiSecret: row.has_api_secret,
         hasBusinessId: row.has_business_id,
         hasWebhookSecret: row.has_webhook_secret,
+        depositFeeType: row.deposit_fee_type,
+        depositFeeValue: Number(row.deposit_fee_value),
+        minimumDepositKobo: Number(row.minimum_deposit_kobo),
       }
     : null;
 }
@@ -142,20 +162,33 @@ export async function saveFlutterwaveProvider(input: {
   secretKey: string;
   webhookHash: string;
   enabled: boolean;
+  depositFeeType: "flat" | "percentage";
+  depositFeeValue: number;
+  minimumDepositKobo: number;
 }): Promise<boolean> {
   const publicKey = input.publicKey ? encryptSecret(input.publicKey) : null;
   const secretKey = input.secretKey ? encryptSecret(input.secretKey) : null;
   const webhookHash = input.webhookHash ? encryptSecret(input.webhookHash) : null;
   const { rowCount } = await getPool().query(
     `insert into payment_providers
-       (id, name, public_key_enc, secret_key_enc, webhook_hash_enc, enabled)
-     values ('flutterwave', 'Flutterwave', $1, $2, $3, $4)
+       (id, name, public_key_enc, secret_key_enc, webhook_hash_enc, enabled,
+        deposit_fee_type, deposit_fee_value, minimum_deposit_kobo)
+     values ('flutterwave', 'Flutterwave', $1, $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
        set public_key_enc = coalesce($1, payment_providers.public_key_enc),
            secret_key_enc = coalesce($2, payment_providers.secret_key_enc),
            webhook_hash_enc = coalesce($3, payment_providers.webhook_hash_enc),
-           enabled = $4, updated_at = now()`,
-    [publicKey, secretKey, webhookHash, input.enabled],
+           enabled = $4, deposit_fee_type = $5, deposit_fee_value = $6,
+           minimum_deposit_kobo = $7, updated_at = now()`,
+    [
+      publicKey,
+      secretKey,
+      webhookHash,
+      input.enabled,
+      input.depositFeeType,
+      input.depositFeeValue,
+      input.minimumDepositKobo,
+    ],
   );
   return (rowCount ?? 0) > 0;
 }
@@ -166,6 +199,9 @@ export async function savePaymentPointProvider(input: {
   businessId: string;
   webhookSecret: string;
   enabled: boolean;
+  depositFeeType: "flat" | "percentage";
+  depositFeeValue: number;
+  minimumDepositKobo: number;
 }): Promise<boolean> {
   const apiKey = input.apiKey ? encryptSecret(input.apiKey) : null;
   const apiSecret = input.apiSecret ? encryptSecret(input.apiSecret) : null;
@@ -173,15 +209,26 @@ export async function savePaymentPointProvider(input: {
   const webhookSecret = input.webhookSecret ? encryptSecret(input.webhookSecret) : null;
   const { rowCount } = await getPool().query(
     `insert into payment_providers
-       (id, name, public_key_enc, secret_key_enc, business_id_enc, webhook_hash_enc, enabled)
-    values ('paymentpoint', 'PaymentPoint', $1, $2, $3, coalesce($4, $2), $5)
+       (id, name, public_key_enc, secret_key_enc, business_id_enc, webhook_hash_enc, enabled,
+        deposit_fee_type, deposit_fee_value, minimum_deposit_kobo)
+    values ('paymentpoint', 'PaymentPoint', $1, $2, $3, coalesce($4, $2), $5, $6, $7, $8)
      on conflict (id) do update
        set public_key_enc = coalesce($1, payment_providers.public_key_enc),
            secret_key_enc = coalesce($2, payment_providers.secret_key_enc),
            business_id_enc = coalesce($3, payment_providers.business_id_enc),
            webhook_hash_enc = coalesce($4, payment_providers.webhook_hash_enc),
-           enabled = $5, updated_at = now()`,
-    [apiKey, apiSecret, businessId, webhookSecret, input.enabled],
+           enabled = $5, deposit_fee_type = $6, deposit_fee_value = $7,
+           minimum_deposit_kobo = $8, updated_at = now()`,
+    [
+      apiKey,
+      apiSecret,
+      businessId,
+      webhookSecret,
+      input.enabled,
+      input.depositFeeType,
+      input.depositFeeValue,
+      input.minimumDepositKobo,
+    ],
   );
   return (rowCount ?? 0) > 0;
 }

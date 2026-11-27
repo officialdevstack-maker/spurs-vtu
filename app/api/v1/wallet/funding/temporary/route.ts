@@ -11,6 +11,7 @@ import {
   createPaymentPointTemporaryAccount,
   PaymentPointApiError,
 } from "@/lib/paymentpoint";
+import { getPaymentPointProviderSettings } from "@/lib/db/payment-providers";
 
 function logPaymentPointError(context: string, error: unknown): void {
   if (error instanceof PaymentPointApiError) {
@@ -28,14 +29,28 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
   const body = await readJson(request);
   const amount = body?.amount;
-  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 100 || amount > 1_000_000) {
-    return apiError("invalid_request", "Enter a funding amount from ₦100 to ₦1,000,000.", 400);
+  if (
+    typeof amount !== "number" ||
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    amount > 1_000_000
+  ) {
+    return apiError("invalid_request", "Enter a valid funding amount up to ₦1,000,000.", 400);
   }
   const amountKobo = Math.round(amount * 100);
   if (!Number.isSafeInteger(amountKobo) || Math.abs(amount * 100 - amountKobo) > 1e-6) {
     return apiError("invalid_request", "The amount must be in whole kobo.", 400);
   }
   try {
+    const providerSettings = await getPaymentPointProviderSettings();
+    const minimumDepositKobo = providerSettings?.minimumDepositKobo ?? 10_000;
+    if (amountKobo < minimumDepositKobo) {
+      return apiError(
+        "invalid_request",
+        `Enter a funding amount from ₦${(minimumDepositKobo / 100).toFixed(2)} to ₦1,000,000.`,
+        400,
+      );
+    }
     const { rows } = await getPool().query<{
       email: string | null;
       name: string | null;

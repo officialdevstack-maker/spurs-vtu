@@ -21,7 +21,7 @@ export default async function TransactionHistoryPage({ searchParams }: { searchP
       <header>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">History</h1>
         <p className="mt-1 text-gray-600 dark:text-[#9FB3B7]">
-          Review transactions across customer accounts. Search by username, email, number or reference.
+          Review transactions across customer accounts. Deposits that need manual review remain pending and are flagged here.
         </p>
       </header>
 

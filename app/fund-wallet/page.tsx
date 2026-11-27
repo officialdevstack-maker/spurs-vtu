@@ -60,8 +60,10 @@ export default async function FundWalletPage() {
         flutterwaveEnabled={flutterwaveSettings?.enabled ?? false}
         paymentPointAccount={paymentPointAccount}
         paymentPointEnabled={paymentPointSettings?.enabled ?? false}
+        paymentPointMinimumKobo={paymentPointSettings?.minimumDepositKobo ?? 10_000}
         paymentPointPendingIntents={paymentPointPendingIntents}
         pendingIntents={pendingIntents}
+        flutterwaveMinimumKobo={flutterwaveSettings?.minimumDepositKobo ?? 10_000}
       />
     </div>
   );

@@ -9,21 +9,74 @@ export type PaymentActionResult = { ok: true } | { ok: false; error: string };
 
 const fail = (error: string): PaymentActionResult => ({ ok: false, error });
 
+function parseDepositSettings(raw: Record<string, unknown>):
+  | {
+      depositFeeType: "flat" | "percentage";
+      depositFeeValue: number;
+      minimumDepositKobo: number;
+    }
+  | string {
+  const depositFeeType = raw.depositFeeType;
+  const feeInput = typeof raw.depositFeeValue === "string" ? raw.depositFeeValue.trim() : "";
+  const minimumInput = typeof raw.minimumDeposit === "string" ? raw.minimumDeposit.trim() : "";
+  if (depositFeeType !== "flat" && depositFeeType !== "percentage") {
+    return "Choose a flat or percentage deposit fee.";
+  }
+  if (!/^\d{1,7}(?:\.\d{1,2})?$/.test(feeInput)) {
+    return "Enter a valid deposit fee.";
+  }
+  const depositFeeValue = Number(feeInput);
+  if (
+    !Number.isFinite(depositFeeValue) ||
+    depositFeeValue < 0 ||
+    depositFeeValue > (depositFeeType === "percentage" ? 100 : 1_000_000)
+  ) {
+    return depositFeeType === "percentage"
+      ? "The percentage fee must be from 0 to 100."
+      : "The flat fee must be from ₦0 to ₦1,000,000.";
+  }
+  if (!/^\d{1,7}(?:\.\d{1,2})?$/.test(minimumInput)) {
+    return "Enter a valid minimum deposit.";
+  }
+  const minimumAmount = Number(minimumInput);
+  const minimumDepositKobo = Math.round(minimumAmount * 100);
+  if (
+    !Number.isFinite(minimumAmount) ||
+    !Number.isSafeInteger(minimumDepositKobo) ||
+    minimumDepositKobo < 10_000 ||
+    minimumDepositKobo > 100_000_000 ||
+    Math.abs(minimumAmount * 100 - minimumDepositKobo) > 1e-6
+  ) {
+    return "The minimum deposit must be from ₦100 to ₦1,000,000.";
+  }
+  return { depositFeeType, depositFeeValue, minimumDepositKobo };
+}
+
 function parseSettings(input: unknown):
-  | { publicKey: string; secretKey: string; webhookHash: string; enabled: boolean }
+  | {
+      publicKey: string;
+      secretKey: string;
+      webhookHash: string;
+      enabled: boolean;
+      depositFeeType: "flat" | "percentage";
+      depositFeeValue: number;
+      minimumDepositKobo: number;
+    }
   | string {
   if (!input || typeof input !== "object") return "Check the payment provider details and try again.";
   const raw = input as Record<string, unknown>;
   const publicKey = typeof raw.publicKey === "string" ? raw.publicKey.trim() : "";
   const secretKey = typeof raw.secretKey === "string" ? raw.secretKey.trim() : "";
   const webhookHash = typeof raw.webhookHash === "string" ? raw.webhookHash.trim() : "";
+  const depositSettings = parseDepositSettings(raw);
+  if (typeof depositSettings === "string") return depositSettings;
 
   if (publicKey.length > 1000 || secretKey.length > 2000 || webhookHash.length > 2000) {
     return "A credential is too long. Check the values and try again.";
   }
   if (typeof raw.enabled !== "boolean") return "Choose whether Flutterwave is enabled.";
 
-  return { publicKey, secretKey, webhookHash, enabled: raw.enabled };
+  return { publicKey, secretKey, webhookHash, enabled: raw.enabled, ...depositSettings };
 }
 
 export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentActionResult> {
@@ -44,7 +97,17 @@ export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentAc
     }
     revalidatePath("/admin/gateways/payment");
     revalidatePath("/fund-wallet");
-    await recordAudit(admin, { action: "payment.flutterwave.save", summary: settings.enabled ? "Saved and enabled Flutterwave" : "Saved and disabled Flutterwave", meta: { enabled: settings.enabled, fieldsChanged: ["publicKey", "secretKey", "webhookHash"] } });
+    await recordAudit(admin, {
+      action: "payment.flutterwave.save",
+      summary: settings.enabled ? "Saved and enabled Flutterwave" : "Saved and disabled Flutterwave",
+      meta: {
+        enabled: settings.enabled,
+        depositFeeType: settings.depositFeeType,
+        depositFeeValue: settings.depositFeeValue,
+        minimumDepositKobo: settings.minimumDepositKobo,
+        fieldsChanged: ["publicKey", "secretKey", "webhookHash", "depositFeeType", "depositFeeValue", "minimumDepositKobo"],
+      },
+    });
     return { ok: true };
   } catch (error) {
     console.error("[payment-gateway] Failed to save Flutterwave settings", error);
@@ -53,7 +116,16 @@ export async function saveFlutterwaveProvider(input: unknown): Promise<PaymentAc
 }
 
 function parsePaymentPointSettings(input: unknown):
-  | { apiKey: string; apiSecret: string; businessId: string; webhookSecret: string; enabled: boolean }
+  | {
+      apiKey: string;
+      apiSecret: string;
+      businessId: string;
+      webhookSecret: string;
+      enabled: boolean;
+      depositFeeType: "flat" | "percentage";
+      depositFeeValue: number;
+      minimumDepositKobo: number;
+    }
   | string {
   if (!input || typeof input !== "object") return "Check the PaymentPoint details and try again.";
   const raw = input as Record<string, unknown>;
@@ -61,13 +133,15 @@ function parsePaymentPointSettings(input: unknown):
   const apiSecret = typeof raw.apiSecret === "string" ? raw.apiSecret.trim() : "";
   const businessId = typeof raw.businessId === "string" ? raw.businessId.trim() : "";
   const webhookSecret = typeof raw.webhookSecret === "string" ? raw.webhookSecret.trim() : "";
+  const depositSettings = parseDepositSettings(raw);
+  if (typeof depositSettings === "string") return depositSettings;
 
   if ([apiKey, apiSecret, businessId, webhookSecret].some((value) => value.length > 2000)) {
     return "A PaymentPoint credential is too long. Check the values and try again.";
   }
   if (typeof raw.enabled !== "boolean") return "Choose whether PaymentPoint is enabled.";
 
-  return { apiKey, apiSecret, businessId, webhookSecret, enabled: raw.enabled };
+  return { apiKey, apiSecret, businessId, webhookSecret, enabled: raw.enabled, ...depositSettings };
 }
 
 export async function savePaymentPointProvider(input: unknown): Promise<PaymentActionResult> {
@@ -91,7 +165,21 @@ export async function savePaymentPointProvider(input: unknown): Promise<PaymentA
     await recordAudit(admin, {
       action: "payment.paymentpoint.save",
       summary: settings.enabled ? "Saved and enabled PaymentPoint" : "Saved and disabled PaymentPoint",
-      meta: { enabled: settings.enabled, fieldsChanged: ["apiKey", "apiSecret", "businessId", "webhookSecret"] },
+      meta: {
+        enabled: settings.enabled,
+        depositFeeType: settings.depositFeeType,
+        depositFeeValue: settings.depositFeeValue,
+        minimumDepositKobo: settings.minimumDepositKobo,
+        fieldsChanged: [
+          "apiKey",
+          "apiSecret",
+          "businessId",
+          "webhookSecret",
+          "depositFeeType",
+          "depositFeeValue",
+          "minimumDepositKobo",
+        ],
+      },
     });
     return { ok: true };
   } catch (error) {

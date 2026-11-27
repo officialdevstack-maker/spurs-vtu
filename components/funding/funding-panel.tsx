@@ -46,16 +46,20 @@ export function FundingPanel({
   flutterwaveEnabled,
   paymentPointAccount,
   paymentPointEnabled,
+  paymentPointMinimumKobo,
   paymentPointPendingIntents,
   pendingIntents,
+  flutterwaveMinimumKobo,
 }: {
   balance: number | null;
   permanentAccount: PermanentAccountView | null;
   flutterwaveEnabled: boolean;
   paymentPointAccount: PaymentPointAccount | null;
   paymentPointEnabled: boolean;
+  paymentPointMinimumKobo: number;
   paymentPointPendingIntents: FundingIntent[];
   pendingIntents: FundingIntent[];
+  flutterwaveMinimumKobo: number;
 }) {
   const [bvn, setBvn] = useState("");
   const [amount, setAmount] = useState("");
@@ -208,17 +212,28 @@ export function FundingPanel({
             </label>
             <input
               id="paymentpoint-funding-amount"
+              type="number"
               inputMode="decimal"
               autoComplete="off"
               placeholder="5000"
+              min={paymentPointMinimumKobo / 100}
+              max="1000000"
+              step="0.01"
               value={paymentPointAmount}
               onChange={(event) => setPaymentPointAmount(event.target.value.replace(/[^\d.]/g, "").slice(0, 10))}
               className={fieldClass}
             />
+            <p className="mt-2 text-xs text-gray-600 dark:text-[#9FB3B7]">
+              Minimum deposit: {formatNaira(paymentPointMinimumKobo / 100)}
+            </p>
             <button
               type="button"
               onClick={createPaymentPointTemporary}
-              disabled={pending || !paymentPointAmount}
+              disabled={
+                pending ||
+                !paymentPointAmount ||
+                Number(paymentPointAmount) * 100 < paymentPointMinimumKobo
+              }
               className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {pending ? "Creating account…" : "Create one-time account"}
@@ -337,17 +352,24 @@ export function FundingPanel({
             </label>
             <input
               id="funding-amount"
+              type="number"
               inputMode="decimal"
               autoComplete="off"
               placeholder="5000"
+              min={flutterwaveMinimumKobo / 100}
+              max="1000000"
+              step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, "").slice(0, 10))}
               className={fieldClass}
             />
+            <p className="mt-2 text-xs text-gray-600 dark:text-[#9FB3B7]">
+              Minimum deposit: {formatNaira(flutterwaveMinimumKobo / 100)}
+            </p>
             <button
               type="button"
               onClick={createTemporary}
-              disabled={pending || !amount}
+              disabled={pending || !amount || Number(amount) * 100 < flutterwaveMinimumKobo}
               className="mt-4 h-11 rounded-xl border border-[#12343B] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#F2B632] dark:text-[#F2B632] dark:hover:bg-white/5 dark:focus-visible:ring-[#F2B632]"
             >
               {pending ? "Creating account…" : "Create temporary account"}

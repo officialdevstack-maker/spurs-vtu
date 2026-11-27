@@ -8,6 +8,12 @@ type PaymentPointAccount = {
   reservedAccountId: string | null;
 };
 
+type PaymentPointAccountInput = {
+  email: string;
+  name: string;
+  phoneNumber: string;
+};
+
 export class PaymentPointApiError extends Error {
   constructor(
     readonly status: number,
@@ -58,7 +64,7 @@ function errorText(value: unknown, depth = 0): string[] {
   return Object.values(record).slice(0, 8).flatMap((item) => errorText(item, depth + 1));
 }
 
-function safeProviderMessage(body: unknown, responseText: string, secrets: string[]): string {
+function safeProviderMessage(body: unknown, responseText: string, secrets: readonly string[]): string {
   const message = errorText(body).join("; ") || responseText || "No error details were returned.";
   let safeMessage = message.replace(/[\r\n\t]+/g, " ").trim();
   for (const secret of secrets) {
@@ -70,14 +76,23 @@ function safeProviderMessage(body: unknown, responseText: string, secrets: strin
   return safeMessage.slice(0, 500);
 }
 
-function responseShape(body: Record<string, unknown> | null, secrets: string[]): string {
+function bankAccountsFrom(body: Record<string, unknown> | null): unknown[] {
   const data = asRecord(body?.data);
   const rawBankAccounts = body?.bankAccounts ?? data?.bankAccounts;
-  const bankAccounts = Array.isArray(rawBankAccounts)
+  return Array.isArray(rawBankAccounts)
     ? rawBankAccounts
     : rawBankAccounts === undefined || rawBankAccounts === null
       ? []
       : [rawBankAccounts];
+}
+
+function responseShape(
+  body: Record<string, unknown> | null,
+  secrets: readonly string[],
+): string {
+  const data = asRecord(body?.data);
+  const rawBankAccounts = body?.bankAccounts ?? data?.bankAccounts;
+  const bankAccounts = bankAccountsFrom(body);
   const firstAccount = asRecord(bankAccounts[0]);
   const providerErrors = errorText(body?.errors);
   return [
@@ -94,16 +109,20 @@ function responseShape(body: Record<string, unknown> | null, secrets: string[]):
 }
 
 async function createVirtualAccount(
-  input: {
-    email: string;
-    name: string;
-    phoneNumber: string;
-  },
+  input: PaymentPointAccountInput,
   amount?: number,
 ): Promise<PaymentPointAccount> {
   const credentials = await getPaymentPointCredentials();
   if (!credentials) throw new Error("PaymentPoint is not configured or is disabled.");
 
+  const secrets = [
+    credentials.apiKey,
+    credentials.apiSecret,
+    credentials.businessId,
+    input.email,
+    input.name,
+    input.phoneNumber,
+  ];
   const dynamic = amount !== undefined;
   const response = await fetch("https://api.paymentpoint.co/api/v1/createVirtualAccount", {
     method: "POST",
@@ -136,76 +155,36 @@ async function createVirtualAccount(
   } catch {
     throw new PaymentPointApiError(
       response.status,
-      safeProviderMessage(null, responseText, [
-        credentials.apiKey,
-        credentials.apiSecret,
-        credentials.businessId,
-        input.email,
-        input.name,
-        input.phoneNumber,
-      ]),
+      safeProviderMessage(null, responseText, secrets),
     );
   }
 
   const body = asRecord(payload);
-  const data = asRecord(body?.data);
-  const rawBankAccounts = body?.bankAccounts ?? data?.bankAccounts;
-  const bankAccounts = Array.isArray(rawBankAccounts)
-    ? rawBankAccounts
-    : rawBankAccounts === undefined || rawBankAccounts === null
-      ? []
-      : [rawBankAccounts];
-  const account = bankAccounts.map(accountDetails).find((details) => details !== null);
+  const account = bankAccountsFrom(body).map(accountDetails).find((details) => details !== null);
   if (!response.ok || !account) {
     throw new PaymentPointApiError(
       response.status,
-      `${safeProviderMessage(body, responseText, [
-        credentials.apiKey,
-        credentials.apiSecret,
-        credentials.businessId,
-        input.email,
-        input.name,
-        input.phoneNumber,
-      ])}; ${responseShape(body, [
-        credentials.apiKey,
-        credentials.apiSecret,
-        credentials.businessId,
-        input.email,
-        input.name,
-        input.phoneNumber,
-      ])}`,
+      `${safeProviderMessage(body, responseText, secrets)}; ${responseShape(body, secrets)}`,
     );
   }
 
   if (errorText(body?.errors).length > 0) {
     console.warn("[paymentpoint] Account created with provider warnings", {
       status: response.status,
-      providerMessage: safeProviderMessage(body?.errors, "", [
-        credentials.apiKey,
-        credentials.apiSecret,
-        credentials.businessId,
-        input.email,
-        input.name,
-        input.phoneNumber,
-      ]),
+      providerMessage: safeProviderMessage(body?.errors, "", secrets),
     });
   }
   return account;
 }
 
-export async function createPaymentPointAccount(input: {
-  email: string;
-  name: string;
-  phoneNumber: string;
-}): Promise<PaymentPointAccount> {
+export async function createPaymentPointAccount(
+  input: PaymentPointAccountInput,
+): Promise<PaymentPointAccount> {
   return createVirtualAccount(input);
 }
 
-export async function createPaymentPointTemporaryAccount(input: {
-  email: string;
-  name: string;
-  phoneNumber: string;
-  amount: number;
-}): Promise<PaymentPointAccount> {
+export async function createPaymentPointTemporaryAccount(
+  input: PaymentPointAccountInput & { amount: number },
+): Promise<PaymentPointAccount> {
   return createVirtualAccount(input, input.amount);
 }

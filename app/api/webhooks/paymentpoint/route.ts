@@ -76,6 +76,8 @@ export async function POST(request: Request) {
     const result = await applyPaymentPointPayment({ transactionId, accountNumber, amountKobo });
     if (result === "not_found") {
       console.warn("[paymentpoint-webhook] Payment did not match a funding account", { transactionId });
+    } else if (result === "needs_review") {
+      console.warn("[paymentpoint-webhook] Deposit held for admin review", { transactionId });
     }
     return Response.json({ received: true, result });
   } catch (error) {

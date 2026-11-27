@@ -29,7 +29,10 @@ const fieldClass =
   "h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#12343B] dark:border-white/15 dark:bg-[#10262B]";
 
 function noteFor(tx: HistoryItem, admin: boolean): string | null {
-  if (tx.status === "pending") return "Waiting for the network to confirm.";
+  if (tx.status === "pending") {
+    if (admin && tx.failureReason?.startsWith("Manual review required:")) return tx.failureReason;
+    return "Waiting for the network to confirm.";
+  }
   if (tx.status !== "failed") return null;
   if (tx.refunded) return "Refunded to wallet.";
   if (tx.debited) return admin ? "Refund needed: wallet was debited." : "Refund in progress.";
@@ -146,7 +149,11 @@ export function HistoryList({
               {note && (
                 <p
                   className={`truncate text-sm ${
-                    admin && note.startsWith("Refund needed") ? "font-medium text-[#C8432B]" : "text-gray-600 dark:text-[#9FB3B7]"
+                    admin && note.startsWith("Refund needed")
+                      ? "font-medium text-[#C8432B]"
+                      : admin && note.startsWith("Manual review required:")
+                        ? "font-medium text-[#9A6700] dark:text-[#F2B632]"
+                        : "text-gray-600 dark:text-[#9FB3B7]"
                   }`}
                 >
                   {note}

@@ -90,6 +90,8 @@ export async function POST(request: Request) {
         transactionId,
         result,
       });
+    } else if (result === "needs_review") {
+      console.warn("[flutterwave-webhook] Deposit held for admin review", { transactionId });
     }
     return Response.json({ received: true, result });
   } catch (error) {
