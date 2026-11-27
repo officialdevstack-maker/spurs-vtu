@@ -1,9 +1,0 @@
-{
-  "crons": [
-    { "path": "/api/cron/fail-pending", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/reconcile", "schedule": "*/10 * * * *" },
-    { "path": "/api/cron/provider-balances", "schedule": "*/30 * * * *" },
-    { "path": "/api/cron/deliver-webhooks", "schedule": "*/1 * * * *" },
-    { "path": "/api/cron/send-broadcasts", "schedule": "*/1 * * * *" }
-  ]
-}
