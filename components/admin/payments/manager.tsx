@@ -3,7 +3,13 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteFlutterwaveProvider, saveFlutterwaveProvider, type PaymentActionResult } from "@/app/admin/gateways/payment/actions";
+import {
+  deleteFlutterwaveProvider,
+  deletePaymentPointProvider,
+  saveFlutterwaveProvider,
+  savePaymentPointProvider,
+  type PaymentActionResult,
+} from "@/app/admin/gateways/payment/actions";
 import { ConfirmDialog } from "@/components/admin/airtime-data/dialogs";
 import {
   Field,
@@ -13,7 +19,7 @@ import {
   inputClass,
 } from "@/components/admin/modal";
 import { Switch } from "@/components/admin/airtime-data/panels";
-import type { PaymentProviderSettings } from "@/lib/db/payment-providers";
+import type { PaymentPointProviderSettings, PaymentProviderSettings } from "@/lib/db/payment-providers";
 
 function CredentialField({
   id,
@@ -46,11 +52,18 @@ function CredentialField({
   );
 }
 
-export function PaymentProvidersManager({ settings }: { settings: PaymentProviderSettings | null }) {
+export function PaymentProvidersManager({
+  settings,
+  paymentPointSettings,
+}: {
+  settings: PaymentProviderSettings | null;
+  paymentPointSettings: PaymentPointProviderSettings | null;
+}) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(settings?.enabled ?? true);
+  const [paymentPointEnabled, setPaymentPointEnabled] = useState(paymentPointSettings?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<"flutterwave" | "paymentpoint" | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -83,8 +96,46 @@ export function PaymentProvidersManager({ settings }: { settings: PaymentProvide
   async function remove(): Promise<PaymentActionResult> {
     const result = await deleteFlutterwaveProvider();
     if (result.ok) {
-      setConfirmDelete(false);
+      setConfirmDelete(null);
       setEnabled(true);
+      router.refresh();
+    }
+    return result;
+  }
+
+  function submitPaymentPoint(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    const form = new FormData(event.currentTarget);
+    const input = {
+      apiKey: form.get("apiKey"),
+      apiSecret: form.get("apiSecret"),
+      businessId: form.get("businessId"),
+      webhookSecret: form.get("webhookSecret"),
+      enabled: paymentPointEnabled,
+    };
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await savePaymentPointProvider(input);
+        if (result.ok) {
+          toast.success("PaymentPoint settings saved");
+          router.refresh();
+        } else {
+          setError(result.error);
+        }
+      } catch (cause) {
+        console.error("[payment-gateway] Failed to save PaymentPoint settings", cause);
+        setError("Could not save PaymentPoint. Please try again.");
+      }
+    });
+  }
+
+  async function removePaymentPoint(): Promise<PaymentActionResult> {
+    const result = await deletePaymentPointProvider();
+    if (result.ok) {
+      setConfirmDelete(null);
+      setPaymentPointEnabled(true);
       router.refresh();
     }
     return result;
@@ -143,7 +194,7 @@ export function PaymentProvidersManager({ settings }: { settings: PaymentProvide
             {settings ? (
               <button
                 type="button"
-                onClick={() => setConfirmDelete(true)}
+                onClick={() => setConfirmDelete("flutterwave")}
                 disabled={pending}
                 className={btnDanger}
               >
@@ -163,20 +214,105 @@ export function PaymentProvidersManager({ settings }: { settings: PaymentProvide
         )}
       </section>
 
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">PaymentPoint</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
+              Credentials are encrypted before storage and are never sent back to this page.
+            </p>
+          </div>
+          <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium dark:bg-white/10">
+            {paymentPointSettings ? "Configured" : "Not configured"}
+          </span>
+        </div>
+
+        <form onSubmit={submitPaymentPoint} className="mt-6 space-y-5">
+          <CredentialField
+            id="apiKey"
+            label="API key"
+            saved={paymentPointSettings?.hasApiKey ?? false}
+            hint="Enter the API key from your PaymentPoint account."
+          />
+          <CredentialField
+            id="apiSecret"
+            label="API secret"
+            saved={paymentPointSettings?.hasApiSecret ?? false}
+            hint="Enter the bearer API secret from your PaymentPoint account."
+          />
+          <CredentialField
+            id="businessId"
+            label="Business ID"
+            saved={paymentPointSettings?.hasBusinessId ?? false}
+            hint="Enter the business ID required by the create virtual account API."
+          />
+          <CredentialField
+            id="webhookSecret"
+            label="Webhook security key"
+            saved={paymentPointSettings?.hasWebhookSecret ?? false}
+            hint="Enter the PaymentPoint security key used to sign webhook notifications."
+          />
+
+          <div className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+            <Switch
+              checked={paymentPointEnabled}
+              label="Allow new PaymentPoint accounts"
+              onChange={setPaymentPointEnabled}
+            />
+            <p className="mt-2 text-sm text-gray-600 dark:text-[#9FB3B7]">
+              Turning this off prevents new account creation. Existing account payments will still be processed.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {paymentPointSettings ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete("paymentpoint")}
+                disabled={pending}
+                className={btnDanger}
+              >
+                Delete provider
+              </button>
+            ) : <span />}
+            <button type="submit" disabled={pending} className={btnPrimary}>
+              {pending ? "Saving…" : paymentPointSettings ? "Save changes" : "Add PaymentPoint"}
+            </button>
+          </div>
+        </form>
+
+        {paymentPointSettings && !paymentPointSettings.enabled && (
+          <p role="status" className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-300/10 dark:text-amber-200">
+            PaymentPoint is disabled for new accounts. Existing payment notifications remain active.
+          </p>
+        )}
+      </section>
+
       <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
         Set <code className="font-[family-name:var(--font-geist-mono)]">PROVIDER_SECRET_KEY</code> in the server
-        environment before saving credentials. Add <code className="font-[family-name:var(--font-geist-mono)]">
+        environment before saving credentials. Configure <code className="font-[family-name:var(--font-geist-mono)]">
           /api/webhooks/flutterwave
-        </code> to your Flutterwave webhook settings.
+        </code> and <code className="font-[family-name:var(--font-geist-mono)]">
+          /api/webhooks/paymentpoint
+        </code> as the webhook URLs in the corresponding provider dashboards.
       </p>
 
-      {confirmDelete && (
+      {confirmDelete === "flutterwave" && (
         <ConfirmDialog
           title="Delete Flutterwave?"
           text="This removes the stored credentials. It can only be deleted before customer virtual accounts and payment records are created."
           confirmLabel="Delete provider"
-          onClose={() => setConfirmDelete(false)}
+          onClose={() => setConfirmDelete(null)}
           onConfirm={remove}
+        />
+      )}
+      {confirmDelete === "paymentpoint" && (
+        <ConfirmDialog
+          title="Delete PaymentPoint?"
+          text="This removes the stored credentials. It can only be deleted before customer accounts and payment records are created."
+          confirmLabel="Delete provider"
+          onClose={() => setConfirmDelete(null)}
+          onConfirm={removePaymentPoint}
         />
       )}
     </div>

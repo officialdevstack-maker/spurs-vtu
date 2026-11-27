@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { FundingPanel } from "@/components/funding/funding-panel";
-import { getFlutterwaveAccount, getRecentFundingIntents } from "@/lib/db/wallet";
+import { getFlutterwaveAccount, getPaymentPointAccount, getRecentFundingIntents } from "@/lib/db/wallet";
+import { getPaymentPointProviderSettings } from "@/lib/db/payment-providers";
 import { getNairaBalance } from "@/lib/wallet";
 import { requireSpursUser } from "@/lib/spurs";
 
@@ -11,10 +12,12 @@ export const instant = false;
 export default async function FundWalletPage() {
   await connection();
   const user = await requireSpursUser();
-  const [balance, permanentAccount, pendingIntents] = await Promise.all([
+  const [balance, permanentAccount, paymentPointAccount, pendingIntents, paymentPointSettings] = await Promise.all([
     getNairaBalance(user.sub),
     getFlutterwaveAccount(user.sub),
+    getPaymentPointAccount(user.sub),
     getRecentFundingIntents(user.sub),
+    getPaymentPointProviderSettings(),
   ]);
   const accountView = permanentAccount
     ? {
@@ -33,7 +36,13 @@ export default async function FundWalletPage() {
           Choose a permanent account for repeat transfers or create a temporary account for one deposit.
         </p>
       </header>
-      <FundingPanel balance={balance} permanentAccount={accountView} pendingIntents={pendingIntents} />
+      <FundingPanel
+        balance={balance}
+        permanentAccount={accountView}
+        paymentPointAccount={paymentPointAccount}
+        paymentPointEnabled={paymentPointSettings?.enabled ?? false}
+        pendingIntents={pendingIntents}
+      />
     </div>
   );
 }

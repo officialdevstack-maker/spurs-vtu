@@ -219,6 +219,102 @@ export async function saveFlutterwaveAccount(input: {
   return accountFromRow(row);
 }
 
+export type PaymentPointAccount = {
+  customerId: string;
+  accountNumber: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  status: "creating" | "active";
+};
+
+function paymentPointAccountFromRow(row: {
+  customer_id: string;
+  account_number: string | null;
+  bank_name: string | null;
+  account_name: string | null;
+  status: "creating" | "active";
+}): PaymentPointAccount {
+  return {
+    customerId: row.customer_id,
+    accountNumber: row.account_number,
+    bankName: row.bank_name,
+    accountName: row.account_name,
+    status: row.status,
+  };
+}
+
+export async function getPaymentPointAccount(customerId: string): Promise<PaymentPointAccount | null> {
+  const { rows } = await getPool().query<{
+    customer_id: string;
+    account_number: string | null;
+    bank_name: string | null;
+    account_name: string | null;
+    status: "creating" | "active";
+  }>(
+    `select customer_id, account_number, bank_name, account_name, status
+     from paymentpoint_virtual_accounts where customer_id = $1`,
+    [customerId],
+  );
+  return rows[0] ? paymentPointAccountFromRow(rows[0]) : null;
+}
+
+export async function reservePaymentPointAccount(
+  customerId: string,
+): Promise<{ account: PaymentPointAccount; created: boolean }> {
+  const inserted = await getPool().query<{
+    customer_id: string;
+    account_number: string | null;
+    bank_name: string | null;
+    account_name: string | null;
+    status: "creating" | "active";
+  }>(
+    `insert into paymentpoint_virtual_accounts (customer_id)
+     values ($1)
+     on conflict (customer_id) do nothing
+     returning customer_id, account_number, bank_name, account_name, status`,
+    [customerId],
+  );
+  if (inserted.rows[0]) {
+    return { account: paymentPointAccountFromRow(inserted.rows[0]), created: true };
+  }
+  const account = await getPaymentPointAccount(customerId);
+  if (!account) throw new Error("Could not reserve a PaymentPoint account.");
+  return { account, created: false };
+}
+
+export async function savePaymentPointAccount(input: {
+  customerId: string;
+  accountNumber: string;
+  bankName: string;
+  accountName: string;
+  reservedAccountId: string | null;
+}): Promise<PaymentPointAccount> {
+  const { rows } = await getPool().query<{
+    customer_id: string;
+    account_number: string | null;
+    bank_name: string | null;
+    account_name: string | null;
+    status: "creating" | "active";
+  }>(
+    `update paymentpoint_virtual_accounts
+     set account_number = $2, bank_name = $3, account_name = $4,
+         reserved_account_id = $5, status = 'active'
+     where customer_id = $1 and status = 'creating'
+     returning customer_id, account_number, bank_name, account_name, status`,
+    [input.customerId, input.accountNumber, input.bankName, input.accountName, input.reservedAccountId],
+  );
+  const row = rows[0];
+  if (!row) throw new Error("PaymentPoint account reservation was not found.");
+  return paymentPointAccountFromRow(row);
+}
+
+export async function deleteCreatingPaymentPointAccount(customerId: string): Promise<void> {
+  await getPool().query(
+    "delete from paymentpoint_virtual_accounts where customer_id = $1 and status = 'creating'",
+    [customerId],
+  );
+}
+
 export type FundingIntent = {
   reference: string;
   amountKobo: number;
@@ -448,6 +544,98 @@ export async function applyFlutterwavePayment(input: {
         [input.reference, customerId],
       );
     }
+    await client.query("commit");
+    return "applied";
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function applyPaymentPointPayment(input: {
+  transactionId: string;
+  accountNumber: string;
+  amountKobo: number;
+}): Promise<"applied" | "duplicate" | "not_found"> {
+  assertAmount(input.amountKobo);
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const priorPayment = await client.query<{
+      customer_id: string;
+      account_number: string;
+      amount_kobo: string;
+    }>(
+      `select customer_id, account_number, amount_kobo::text
+       from paymentpoint_payments where transaction_id = $1`,
+      [input.transactionId],
+    );
+    if (priorPayment.rows[0]) {
+      const prior = priorPayment.rows[0];
+      if (
+        prior.account_number !== input.accountNumber ||
+        BigInt(prior.amount_kobo) !== BigInt(input.amountKobo)
+      ) {
+        throw new Error("PaymentPoint transaction details changed after it was credited.");
+      }
+      await client.query("commit");
+      return "duplicate";
+    }
+
+    const account = await client.query<{ customer_id: string }>(
+      `select customer_id from paymentpoint_virtual_accounts
+       where account_number = $1 and status = 'active' for update`,
+      [input.accountNumber],
+    );
+    const customerId = account.rows[0]?.customer_id;
+    if (!customerId) {
+      await client.query("rollback");
+      return "not_found";
+    }
+
+    await client.query(
+      `insert into vtu_wallets (customer_id) values ($1)
+       on conflict (customer_id) do nothing`,
+      [customerId],
+    );
+    await client.query("select customer_id from vtu_wallets where customer_id = $1 for update", [customerId]);
+
+    const reference = `paymentpoint:${input.transactionId}`;
+    const ledger = await client.query(
+      `insert into vtu_wallet_ledger (reference, customer_id, direction, amount_kobo, source)
+       values ($1, $2, 'credit', $3, 'paymentpoint')
+       on conflict (reference) do nothing
+       returning reference`,
+      [reference, customerId, input.amountKobo],
+    );
+    if ((ledger.rowCount ?? 0) !== 1) {
+      throw new Error("PaymentPoint payment conflicts with an existing wallet entry.");
+    }
+    await client.query(
+      `update vtu_wallets set balance_kobo = balance_kobo + $2, updated_at = now()
+       where customer_id = $1`,
+      [customerId, input.amountKobo],
+    );
+    await client.query(
+      `insert into paymentpoint_payments (transaction_id, customer_id, account_number, amount_kobo)
+       values ($1, $2, $3, $4)`,
+      [input.transactionId, customerId, input.accountNumber, input.amountKobo],
+    );
+    const history = await client.query(
+      `insert into transactions
+         (id, customer_id, service, title, detail, amount, direction, status)
+       values ($1, $2, 'wallet', 'Wallet funding', 'PaymentPoint bank transfer', $3, 'credit', 'success')
+       on conflict (id) do update
+         set detail = 'PaymentPoint bank transfer', amount = excluded.amount,
+             status = 'success', updated_at = now()
+       where transactions.customer_id = excluded.customer_id
+         and transactions.direction = 'credit'
+       returning id`,
+      [`pp-${input.transactionId}`, customerId, input.amountKobo / 100],
+    );
+    if (!history.rows[0]) throw new Error("PaymentPoint payment conflicts with an existing transaction.");
     await client.query("commit");
     return "applied";
   } catch (error) {

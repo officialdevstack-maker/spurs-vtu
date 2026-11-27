@@ -4,12 +4,17 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { accountDetails, getFlutterwave } from "@/lib/flutterwave";
 import {
+  deleteCreatingPaymentPointAccount,
   createFundingIntent,
   getFlutterwaveAccount,
   reserveFlutterwaveAccount,
+  reservePaymentPointAccount,
   saveFlutterwaveAccount,
+  savePaymentPointAccount,
   saveFundingIntentAccount,
 } from "@/lib/db/wallet";
+import { getPool } from "@/lib/db";
+import { createPaymentPointAccount } from "@/lib/paymentpoint";
 import { requireSpursUser } from "@/lib/spurs";
 
 export type FundingActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -91,6 +96,65 @@ export async function createPermanentFundingAccount(bvn: string): Promise<Fundin
     return {
       ok: false,
       error: "We couldn't create your permanent account. Check your details and try again.",
+    };
+  }
+}
+
+export async function createPaymentPointFundingAccount(): Promise<FundingActionResult<FundingAccountResult>> {
+  const user = await requireSpursUser();
+  if (!user.email || (!user.name && !user.username)) {
+    return { ok: false, error: "Add your name and email to your Spurs account before creating an account." };
+  }
+  const { rows } = await getPool().query<{ phone: string | null }>(
+    "select phone from customers where id = $1",
+    [user.sub],
+  );
+  const phoneNumber = rows[0]?.phone?.trim();
+  if (!phoneNumber) {
+    return { ok: false, error: "Add a phone number to your Spurs account before creating a PaymentPoint account." };
+  }
+
+  const reservation = await reservePaymentPointAccount(user.sub);
+  if (!reservation.created) {
+    if (
+      reservation.account.status === "active" &&
+      reservation.account.accountNumber &&
+      reservation.account.bankName
+    ) {
+      return publicAccount(reservation.account);
+    }
+    return { ok: false, error: "Your PaymentPoint account is already being created. Refresh the page shortly." };
+  }
+
+  const name = customerName(user);
+  let details: Awaited<ReturnType<typeof createPaymentPointAccount>>;
+  try {
+    details = await createPaymentPointAccount({ email: user.email, name, phoneNumber });
+  } catch (error) {
+    await deleteCreatingPaymentPointAccount(user.sub);
+    console.error("[funding] PaymentPoint account setup failed", error instanceof Error ? error.name : "Unknown error");
+    return {
+      ok: false,
+      error: "We couldn't create your PaymentPoint account. Check your profile details and try again.",
+    };
+  }
+
+  try {
+    const account = await savePaymentPointAccount({
+      customerId: user.sub,
+      accountNumber: details.accountNumber,
+      bankName: details.bankName,
+      accountName: details.accountName || name,
+      reservedAccountId: details.reservedAccountId,
+    });
+    revalidatePath("/fund-wallet");
+    revalidatePath("/dashboard");
+    return publicAccount(account);
+  } catch (error) {
+    console.error("[funding] PaymentPoint account was created but could not be saved", error instanceof Error ? error.name : "Unknown error");
+    return {
+      ok: false,
+      error: "PaymentPoint created your account, but we couldn't save its details. Contact support before trying again.",
     };
   }
 }

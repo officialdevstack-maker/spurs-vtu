@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import {
+  createPaymentPointFundingAccount,
   createPermanentFundingAccount,
   createTemporaryFundingAccount,
   type FundingAccountResult,
 } from "@/app/fund-wallet/actions";
-import type { FundingIntent } from "@/lib/db/wallet";
+import type { FundingIntent, PaymentPointAccount } from "@/lib/db/wallet";
 import { formatNaira } from "@/lib/format";
 
 const fieldClass =
@@ -41,15 +42,20 @@ function AccountDetails({ account }: { account: FundingAccountResult }) {
 export function FundingPanel({
   balance,
   permanentAccount,
+  paymentPointAccount,
+  paymentPointEnabled,
   pendingIntents,
 }: {
   balance: number | null;
   permanentAccount: PermanentAccountView | null;
+  paymentPointAccount: PaymentPointAccount | null;
+  paymentPointEnabled: boolean;
   pendingIntents: FundingIntent[];
 }) {
   const [bvn, setBvn] = useState("");
   const [amount, setAmount] = useState("");
   const [permanentAccountResult, setPermanentAccountResult] = useState<FundingAccountResult | null>(null);
+  const [paymentPointAccountResult, setPaymentPointAccountResult] = useState<FundingAccountResult | null>(null);
   const [temporaryAccountResult, setTemporaryAccountResult] = useState<
     (FundingAccountResult & { amount: number; reference: string }) | null
   >(null);
@@ -92,6 +98,23 @@ export function FundingPanel({
     });
   }
 
+  function createPaymentPoint() {
+    setError("");
+    setPaymentPointAccountResult(null);
+    startTransition(async () => {
+      try {
+        const result = await createPaymentPointFundingAccount();
+        if (result.ok) {
+          setPaymentPointAccountResult(result.value);
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        setError("We couldn't create your PaymentPoint account. Please try again.");
+      }
+    });
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <section className="rounded-2xl bg-[#12343B] p-6 text-[#EEF3F4]">
@@ -101,6 +124,47 @@ export function FundingPanel({
         </p>
         <p className="mt-2 text-sm text-[#B9C8CB]">Deposits are credited to your VTU wallet after your payment is confirmed.</p>
       </section>
+
+      {(paymentPointEnabled || paymentPointAccount) && (
+        <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
+          <h2 className="font-semibold">PaymentPoint account</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            Use this account for repeat bank transfers. Payments are added to your VTU wallet after PaymentPoint confirms them.
+          </p>
+          {paymentPointAccount?.status === "active" && paymentPointAccount.accountNumber ? (
+            <AccountDetails
+              account={{
+                accountNumber: paymentPointAccount.accountNumber,
+                bankName: paymentPointAccount.bankName ?? "Bank",
+                accountName: paymentPointAccount.accountName ?? "",
+              }}
+            />
+          ) : paymentPointAccount?.status === "creating" ? (
+            <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+              PaymentPoint account setup is in progress. Refresh this page shortly.
+            </p>
+          ) : paymentPointEnabled ? (
+            <button
+              type="button"
+              onClick={createPaymentPoint}
+              disabled={pending}
+              className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pending ? "Creating account…" : "Create PaymentPoint account"}
+            </button>
+          ) : (
+            <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+              PaymentPoint is disabled for new accounts. Your existing account remains active for payments.
+            </p>
+          )}
+          {paymentPointAccountResult && <AccountDetails account={paymentPointAccountResult} />}
+          {!paymentPointEnabled && paymentPointAccount?.status === "active" && (
+            <p role="status" className="mt-3 text-xs text-gray-600 dark:text-[#9FB3B7]">
+              PaymentPoint is disabled for new accounts. Your existing account remains active for payments.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
         <h2 className="font-semibold">Permanent account</h2>

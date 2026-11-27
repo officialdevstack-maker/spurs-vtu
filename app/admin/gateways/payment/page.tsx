@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { requirePermission } from "@/lib/admin/auth";
 import { PaymentProvidersManager } from "@/components/admin/payments/manager";
-import { getPaymentProviderSettings } from "@/lib/db/payment-providers";
+import { getPaymentPointProviderSettings, getPaymentProviderSettings } from "@/lib/db/payment-providers";
 
 export const metadata: Metadata = { title: "Payment gateways | Spur VTU" };
 
 export default async function PaymentGatewaysPage() {
   await connection();
   await requirePermission("gateways.manage");
-  const settings = await getPaymentProviderSettings();
+  const [settings, paymentPointSettings] = await Promise.all([
+    getPaymentProviderSettings(),
+    getPaymentPointProviderSettings(),
+  ]);
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
@@ -19,7 +22,7 @@ export default async function PaymentGatewaysPage() {
         </p>
       </header>
 
-      <PaymentProvidersManager settings={settings} />
+      <PaymentProvidersManager settings={settings} paymentPointSettings={paymentPointSettings} />
     </div>
   );
 }
