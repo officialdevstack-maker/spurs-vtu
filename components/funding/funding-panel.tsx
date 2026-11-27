@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
+  createPaymentPointTemporaryFundingAccount,
   createPaymentPointFundingAccount,
   createPermanentFundingAccount,
   createTemporaryFundingAccount,
@@ -45,6 +46,7 @@ export function FundingPanel({
   flutterwaveEnabled,
   paymentPointAccount,
   paymentPointEnabled,
+  paymentPointPendingIntents,
   pendingIntents,
 }: {
   balance: number | null;
@@ -52,12 +54,17 @@ export function FundingPanel({
   flutterwaveEnabled: boolean;
   paymentPointAccount: PaymentPointAccount | null;
   paymentPointEnabled: boolean;
+  paymentPointPendingIntents: FundingIntent[];
   pendingIntents: FundingIntent[];
 }) {
   const [bvn, setBvn] = useState("");
   const [amount, setAmount] = useState("");
+  const [paymentPointAmount, setPaymentPointAmount] = useState("");
   const [permanentAccountResult, setPermanentAccountResult] = useState<FundingAccountResult | null>(null);
   const [paymentPointAccountResult, setPaymentPointAccountResult] = useState<FundingAccountResult | null>(null);
+  const [paymentPointTemporaryResult, setPaymentPointTemporaryResult] = useState<
+    (FundingAccountResult & { amount: number; reference: string }) | null
+  >(null);
   const [temporaryAccountResult, setTemporaryAccountResult] = useState<
     (FundingAccountResult & { amount: number; reference: string }) | null
   >(null);
@@ -117,6 +124,24 @@ export function FundingPanel({
     });
   }
 
+  function createPaymentPointTemporary() {
+    setError("");
+    setPaymentPointTemporaryResult(null);
+    startTransition(async () => {
+      try {
+        const result = await createPaymentPointTemporaryFundingAccount(paymentPointAmount);
+        if (result.ok) {
+          setPaymentPointTemporaryResult(result.value);
+          setPaymentPointAmount("");
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        setError("We couldn't create a PaymentPoint temporary account. Please try again.");
+      }
+    });
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <section className="rounded-2xl bg-[#12343B] p-6 text-[#EEF3F4]">
@@ -129,7 +154,7 @@ export function FundingPanel({
 
       {(paymentPointEnabled || paymentPointAccount) && (
         <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
-          <h2 className="font-semibold">PaymentPoint account</h2>
+          <h2 className="font-semibold">PaymentPoint permanent account</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
             Use this account for repeat bank transfers. Payments are added to your VTU wallet after PaymentPoint confirms them.
           </p>
@@ -143,7 +168,7 @@ export function FundingPanel({
             />
           ) : paymentPointAccount?.status === "creating" ? (
             <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-              PaymentPoint account setup is in progress. Refresh this page shortly.
+              Account setup is in progress. Refresh shortly; if it does not appear, you can retry.
             </p>
           ) : paymentPointEnabled ? (
             <button
@@ -152,7 +177,7 @@ export function FundingPanel({
               disabled={pending}
               className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {pending ? "Creating account…" : "Create PaymentPoint account"}
+              {pending ? "Creating account…" : "Create PaymentPoint permanent account"}
             </button>
           ) : (
             <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
@@ -167,6 +192,78 @@ export function FundingPanel({
           )}
         </section>
       )}
+
+      <section
+        hidden={!paymentPointEnabled && paymentPointPendingIntents.length === 0}
+        className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6"
+      >
+        <h2 className="font-semibold">PaymentPoint temporary account</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
+          Create an OPay account for one deposit. Transfer exactly the amount shown while the account is active.
+        </p>
+        {paymentPointEnabled ? (
+          <>
+            <label htmlFor="paymentpoint-funding-amount" className="mt-4 block text-sm font-medium">
+              Amount (₦)
+            </label>
+            <input
+              id="paymentpoint-funding-amount"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="5000"
+              value={paymentPointAmount}
+              onChange={(event) => setPaymentPointAmount(event.target.value.replace(/[^\d.]/g, "").slice(0, 10))}
+              className={fieldClass}
+            />
+            <button
+              type="button"
+              onClick={createPaymentPointTemporary}
+              disabled={pending || !paymentPointAmount}
+              className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pending ? "Creating account…" : "Create PaymentPoint temporary account"}
+            </button>
+          </>
+        ) : (
+          <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            PaymentPoint is disabled for new accounts. Existing temporary accounts remain active for payments.
+          </p>
+        )}
+
+        {paymentPointTemporaryResult && (
+          <div className="mt-4 rounded-xl border border-[#F2B632]/60 bg-[#FFF8E1] p-4 dark:bg-[#F2B632]/10">
+            <p className="font-semibold">
+              Transfer exactly {formatNaira(paymentPointTemporaryResult.amount)}
+            </p>
+            <AccountDetails account={paymentPointTemporaryResult} />
+            <p className="mt-3 text-xs text-gray-600 dark:text-[#9FB3B7]">
+              Reference: <span className="font-mono">{paymentPointTemporaryResult.reference}</span>
+            </p>
+          </div>
+        )}
+
+        {paymentPointPendingIntents.length > 0 && (
+          <div className="mt-5 space-y-3">
+            <h3 className="text-sm font-semibold">Recent PaymentPoint temporary accounts</h3>
+            {paymentPointPendingIntents.map((intent) => (
+              <div key={intent.reference} className="rounded-xl bg-gray-100 p-4 text-sm dark:bg-white/5">
+                <p className="font-semibold">
+                  Transfer {formatNaira(intent.amountKobo / 100)}
+                  {intent.status === "creating" ? " · Preparing account" : ""}
+                </p>
+                {intent.accountNumber && (
+                  <p className="mt-1">
+                    {intent.bankName} · <span className="font-semibold tabular-nums">{intent.accountNumber}</span>
+                  </p>
+                )}
+                <p className="mt-1 break-all font-mono text-xs text-gray-600 dark:text-[#9FB3B7]">
+                  {intent.reference}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section
         hidden={!flutterwaveEnabled && !permanentAccount}

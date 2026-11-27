@@ -6,15 +6,22 @@ import { accountDetails, getFlutterwave } from "@/lib/flutterwave";
 import {
   deleteCreatingPaymentPointAccount,
   createFundingIntent,
+  createPaymentPointFundingIntent,
+  failPaymentPointFundingIntent,
   getFlutterwaveAccount,
   reserveFlutterwaveAccount,
   reservePaymentPointAccount,
   saveFlutterwaveAccount,
   savePaymentPointAccount,
+  savePaymentPointFundingIntentAccount,
   saveFundingIntentAccount,
 } from "@/lib/db/wallet";
 import { getPool } from "@/lib/db";
-import { createPaymentPointAccount } from "@/lib/paymentpoint";
+import {
+  createPaymentPointAccount,
+  createPaymentPointTemporaryAccount,
+  PaymentPointApiError,
+} from "@/lib/paymentpoint";
 import { requireSpursUser } from "@/lib/spurs";
 
 export type FundingActionResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -28,6 +35,17 @@ export type FundingAccountResult = {
 function customerName(user: { name?: string | null; username?: string | null }) {
   const name = user.name?.trim() || user.username?.trim() || "Spurs customer";
   return name.slice(0, 100);
+}
+
+function logPaymentPointError(context: string, error: unknown): void {
+  if (error instanceof PaymentPointApiError) {
+    console.error(context, { status: error.status, providerMessage: error.providerMessage });
+  } else {
+    console.error(
+      context,
+      error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
+    );
+  }
 }
 
 function publicAccount(account: {
@@ -131,11 +149,15 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
   try {
     details = await createPaymentPointAccount({ email: user.email, name, phoneNumber });
   } catch (error) {
+    const requestRejected =
+      error instanceof PaymentPointApiError && error.status >= 400 && error.status < 500;
     await deleteCreatingPaymentPointAccount(user.sub);
-    console.error("[funding] PaymentPoint account setup failed", error instanceof Error ? error.name : "Unknown error");
+    logPaymentPointError("[funding] PaymentPoint account setup failed", error);
     return {
       ok: false,
-      error: "We couldn't create your PaymentPoint account. Check your profile details and try again.",
+      error: requestRejected
+        ? "PaymentPoint rejected the account request. Check your profile details and try again."
+        : "PaymentPoint did not return usable account details. Check the server log and try again.",
     };
   }
 
@@ -155,6 +177,89 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
     return {
       ok: false,
       error: "PaymentPoint created your account, but we couldn't save its details. Contact support before trying again.",
+    };
+  }
+}
+
+export async function createPaymentPointTemporaryFundingAccount(
+  amountInput: string,
+): Promise<FundingActionResult<FundingAccountResult & { amount: number; reference: string }>> {
+  const user = await requireSpursUser();
+  const amount = Number(amountInput);
+  const amountKobo = Math.round(amount * 100);
+  if (
+    !/^\d{1,7}(?:\.\d{1,2})?$/.test(amountInput) ||
+    !Number.isFinite(amount) ||
+    !Number.isSafeInteger(amountKobo) ||
+    amountKobo < 10_000 ||
+    amountKobo > 100_000_000
+  ) {
+    return { ok: false, error: "Enter a funding amount from ₦100 to ₦1,000,000." };
+  }
+  if (!user.email || (!user.name && !user.username)) {
+    return { ok: false, error: "Add your name and email to your Spurs account before creating an account." };
+  }
+
+  const { rows } = await getPool().query<{ phone: string | null }>(
+    "select phone from customers where id = $1",
+    [user.sub],
+  );
+  const phoneNumber = rows[0]?.phone?.trim();
+  if (!phoneNumber) {
+    return { ok: false, error: "Add a phone number to your Spurs account before creating a PaymentPoint account." };
+  }
+
+  const reference = randomUUID();
+  const intent = await createPaymentPointFundingIntent({
+    reference,
+    customerId: user.sub,
+    amountKobo,
+  });
+  const name = customerName(user);
+  let details: Awaited<ReturnType<typeof createPaymentPointTemporaryAccount>>;
+  try {
+    details = await createPaymentPointTemporaryAccount({
+      email: user.email,
+      name,
+      phoneNumber,
+      amount: amountKobo / 100,
+    });
+  } catch (error) {
+    await failPaymentPointFundingIntent(intent.reference, user.sub);
+    logPaymentPointError("[funding] PaymentPoint temporary account setup failed", error);
+    return {
+      ok: false,
+      error: "PaymentPoint did not return usable account details. Check the server log and try again.",
+    };
+  }
+
+  try {
+    const saved = await savePaymentPointFundingIntentAccount({
+      reference: intent.reference,
+      customerId: user.sub,
+      accountNumber: details.accountNumber,
+      bankName: details.bankName,
+    });
+    revalidatePath("/fund-wallet");
+    revalidatePath("/dashboard");
+    return {
+      ok: true,
+      value: {
+        accountNumber: saved.accountNumber ?? details.accountNumber,
+        bankName: saved.bankName ?? details.bankName,
+        accountName: details.accountName || name,
+        amount: saved.amountKobo / 100,
+        reference: saved.reference,
+      },
+    };
+  } catch (error) {
+    console.error(
+      "[funding] PaymentPoint temporary account was created but could not be saved",
+      error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
+    );
+    return {
+      ok: false,
+      error: "PaymentPoint created the temporary account, but we couldn't save its details. Try again.",
     };
   }
 }

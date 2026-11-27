@@ -315,6 +315,145 @@ export async function deleteCreatingPaymentPointAccount(customerId: string): Pro
   );
 }
 
+export async function createPaymentPointFundingIntent(input: {
+  reference: string;
+  customerId: string;
+  amountKobo: number;
+}): Promise<FundingIntent> {
+  assertAmount(input.amountKobo);
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const { rows } = await client.query<{
+      reference: string;
+      amount_kobo: string;
+      account_number: string | null;
+      bank_name: string | null;
+      status: FundingIntent["status"];
+    }>(
+      `insert into paymentpoint_funding_intents (reference, customer_id, amount_kobo)
+       values ($1, $2, $3)
+       returning reference, amount_kobo::text, account_number, bank_name, status`,
+      [input.reference, input.customerId, input.amountKobo],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("PaymentPoint funding intent was not created.");
+    await client.query(
+      `insert into transactions (id, customer_id, service, title, detail, amount, direction, status)
+       values ($1, $2, 'wallet', 'Wallet funding', 'PaymentPoint temporary account', $3, 'credit', 'pending')`,
+      [input.reference, input.customerId, input.amountKobo / 100],
+    );
+    await client.query("commit");
+    return {
+      reference: row.reference,
+      amountKobo: Number(row.amount_kobo),
+      accountNumber: row.account_number,
+      bankName: row.bank_name,
+      status: row.status,
+      expiresAt: null,
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function savePaymentPointFundingIntentAccount(input: {
+  reference: string;
+  customerId: string;
+  accountNumber: string;
+  bankName: string;
+}): Promise<FundingIntent> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const { rows } = await client.query<{
+      reference: string;
+      amount_kobo: string;
+      account_number: string | null;
+      bank_name: string | null;
+      status: FundingIntent["status"];
+    }>(
+      `update paymentpoint_funding_intents
+       set account_number = $3, bank_name = $4, status = 'pending', updated_at = now()
+       where reference = $1 and customer_id = $2 and status = 'creating'
+       returning reference, amount_kobo::text, account_number, bank_name, status`,
+      [input.reference, input.customerId, input.accountNumber, input.bankName],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("PaymentPoint funding intent could not be updated.");
+    const transaction = await client.query(
+      `update transactions set detail = $2, updated_at = now()
+       where id = $1 and customer_id = $3 and status = 'pending'`,
+      [input.reference, `PaymentPoint temporary account ${input.accountNumber}`, input.customerId],
+    );
+    if ((transaction.rowCount ?? 0) !== 1) throw new Error("PaymentPoint funding transaction was not found.");
+    await client.query("commit");
+    return {
+      reference: row.reference,
+      amountKobo: Number(row.amount_kobo),
+      accountNumber: row.account_number,
+      bankName: row.bank_name,
+      status: row.status,
+      expiresAt: null,
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function failPaymentPointFundingIntent(reference: string, customerId: string): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `update paymentpoint_funding_intents set status = 'failed', updated_at = now()
+       where reference = $1 and customer_id = $2 and status = 'creating'`,
+      [reference, customerId],
+    );
+    await client.query(
+      `update transactions set status = 'failed', updated_at = now()
+       where id = $1 and customer_id = $2 and status = 'pending'`,
+      [reference, customerId],
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getRecentPaymentPointFundingIntents(customerId: string, limit = 3): Promise<FundingIntent[]> {
+  const { rows } = await getPool().query<{
+    reference: string;
+    amount_kobo: string;
+    account_number: string | null;
+    bank_name: string | null;
+    status: FundingIntent["status"];
+  }>(
+    `select reference, amount_kobo::text, account_number, bank_name, status
+     from paymentpoint_funding_intents
+     where customer_id = $1 and status in ('creating', 'pending')
+     order by created_at desc limit $2`,
+    [customerId, limit],
+  );
+  return rows.map((row) => ({
+    reference: row.reference,
+    amountKobo: Number(row.amount_kobo),
+    accountNumber: row.account_number,
+    bankName: row.bank_name,
+    status: row.status,
+    expiresAt: null,
+  }));
+}
+
 export type FundingIntent = {
   reference: string;
   amountKobo: number;
@@ -584,15 +723,49 @@ export async function applyPaymentPointPayment(input: {
       return "duplicate";
     }
 
-    const account = await client.query<{ customer_id: string }>(
-      `select customer_id from paymentpoint_virtual_accounts
-       where account_number = $1 and status = 'active' for update`,
+    const intent = await client.query<{
+      reference: string;
+      customer_id: string;
+      amount_kobo: string;
+    }>(
+      `select reference, customer_id, amount_kobo::text
+       from paymentpoint_funding_intents
+       where account_number = $1 and status = 'pending' for update`,
       [input.accountNumber],
     );
-    const customerId = account.rows[0]?.customer_id;
+    const account = intent.rows[0]
+      ? null
+      : await client.query<{ customer_id: string }>(
+          `select customer_id from paymentpoint_virtual_accounts
+           where account_number = $1 and status = 'active' for update`,
+          [input.accountNumber],
+        );
+    const customerId = intent.rows[0]?.customer_id ?? account?.rows[0]?.customer_id;
     if (!customerId) {
+      const completedDuplicate = await client.query<{
+        account_number: string;
+        amount_kobo: string;
+      }>(
+        `select account_number, amount_kobo::text
+         from paymentpoint_payments where transaction_id = $1`,
+        [input.transactionId],
+      );
+      if (completedDuplicate.rows[0]) {
+        const prior = completedDuplicate.rows[0];
+        if (
+          prior.account_number !== input.accountNumber ||
+          BigInt(prior.amount_kobo) !== BigInt(input.amountKobo)
+        ) {
+          throw new Error("PaymentPoint transaction details changed after it was credited.");
+        }
+        await client.query("commit");
+        return "duplicate";
+      }
       await client.query("rollback");
       return "not_found";
+    }
+    if (intent.rows[0] && BigInt(intent.rows[0].amount_kobo) !== BigInt(input.amountKobo)) {
+      throw new Error("PaymentPoint temporary funding amount does not match the intent.");
     }
 
     const concurrentPayment = await client.query<{
@@ -645,19 +818,28 @@ export async function applyPaymentPointPayment(input: {
        values ($1, $2, $3, $4)`,
       [input.transactionId, customerId, input.accountNumber, input.amountKobo],
     );
+    const historyId = intent.rows[0]?.reference ?? `pp-${input.transactionId}`;
+    const detail = intent.rows[0] ? "PaymentPoint temporary bank transfer" : "PaymentPoint bank transfer";
     const history = await client.query(
       `insert into transactions
          (id, customer_id, service, title, detail, amount, direction, status)
-       values ($1, $2, 'wallet', 'Wallet funding', 'PaymentPoint bank transfer', $3, 'credit', 'success')
+       values ($1, $2, 'wallet', 'Wallet funding', $3, $4, 'credit', 'success')
        on conflict (id) do update
-         set detail = 'PaymentPoint bank transfer', amount = excluded.amount,
+         set detail = excluded.detail, amount = excluded.amount,
              status = 'success', updated_at = now()
        where transactions.customer_id = excluded.customer_id
          and transactions.direction = 'credit'
        returning id`,
-      [`pp-${input.transactionId}`, customerId, input.amountKobo / 100],
+      [historyId, customerId, detail, input.amountKobo / 100],
     );
     if (!history.rows[0]) throw new Error("PaymentPoint payment conflicts with an existing transaction.");
+    if (intent.rows[0]) {
+      await client.query(
+        `update paymentpoint_funding_intents set status = 'completed', updated_at = now()
+         where reference = $1 and status = 'pending'`,
+        [intent.rows[0].reference],
+      );
+    }
     await client.query("commit");
     return "applied";
   } catch (error) {

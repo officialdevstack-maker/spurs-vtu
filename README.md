@@ -73,8 +73,8 @@ from the PaymentPoint account. If PaymentPoint provides a separate webhook
 signing key, enter it; otherwise the API secret is used. Configure
 `<APP_URL>/api/webhooks/paymentpoint` as its webhook URL. PaymentPoint webhook
 signatures are verified with HMAC-SHA256 before a matching account payment is
-credited. Customers need a phone number on their profile to create a
-PaymentPoint virtual account.
+credited. Customers with a phone number on their profile can create a permanent
+PaymentPoint account or an amount-specific temporary OPay account.
 
 Payment provider credentials are encrypted at rest. Set `PROVIDER_SECRET_KEY`
 to a dedicated, randomly generated 32-byte base64 key before saving provider

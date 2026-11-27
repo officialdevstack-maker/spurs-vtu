@@ -228,6 +228,7 @@ export async function deletePaymentPointProvider(): Promise<"deleted" | "not_fou
 
     const references = await client.query(
       `select exists(select 1 from paymentpoint_virtual_accounts)
+           or exists(select 1 from paymentpoint_funding_intents where status in ('creating', 'pending'))
            or exists(select 1 from paymentpoint_payments) as in_use`,
     );
     if (references.rows[0]?.in_use) {
