@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { spurs } from "@/lib/spurs";
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 function Wordmark({ className = "" }: { className?: string }) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <img src="/logo.png" alt="" className="size-9 rounded-lg" />
+      <Image src="/logo.png" alt="" width={36} height={36} className="rounded-lg" />
       <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">Spur VTU</span>
     </div>
   );

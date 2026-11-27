@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
@@ -43,7 +44,7 @@ const ITEMS_KEY = "spur-nav-items";
 export function Wordmark({ textClassName = "", suffix }: { textClassName?: string; suffix?: string }) {
   return (
     <div className="flex items-center gap-3">
-      <img src="/logo.png" alt="" className="size-9 shrink-0 rounded-lg" />
+      <Image src="/logo.png" alt="" width={36} height={36} className="shrink-0 rounded-lg" />
       <span className={`text-xl font-bold tracking-tight ${textClassName}`}>
         Spur VTU
         {suffix && (

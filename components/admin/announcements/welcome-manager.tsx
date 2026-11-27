@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveWelcome } from "@/app/admin/announcements/welcome/actions";
@@ -65,7 +66,7 @@ export function WelcomeManager({ popup }: { popup: WelcomePopup }) {
         <p className="mb-3 text-sm font-medium text-gray-600 dark:text-[#9FB3B7]">Preview</p>
         <div className="grid place-items-center rounded-2xl bg-gray-100 p-8 dark:bg-white/5">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-[#12343B] shadow-xl dark:bg-[#10262B] dark:text-[#EEF3F4]">
-            <img src="/logo.png" alt="" className="size-11 rounded-xl" />
+            <Image src="/logo.png" alt="" width={44} height={44} className="rounded-xl" />
             <h2 className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">{renderTemplate(title, sample) || "Your title"}</h2>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-[#9FB3B7]">{renderTemplate(body, sample) || "Your message"}</p>
             <div className="mt-6 flex flex-col gap-2">

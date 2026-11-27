@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { markWelcomeSeen } from "@/app/dashboard/welcome-actions";
@@ -21,7 +22,7 @@ export function WelcomeModal({ title, body, ctaLabel, ctaHref, version }: { titl
 
   return (
     <dialog ref={ref} onClose={onClose} aria-labelledby="welcome-title" className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-white p-6 text-[#12343B] shadow-2xl backdrop:bg-black/50 dark:bg-[#10262B] dark:text-[#EEF3F4]">
-      <img src="/logo.png" alt="" className="size-11 rounded-xl" />
+      <Image src="/logo.png" alt="" width={44} height={44} className="rounded-xl" />
       <h2 id="welcome-title" className="mt-4 font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">{title}</h2>
       <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-[#9FB3B7]">{body}</p>
       <div className="mt-6 flex flex-col gap-2">

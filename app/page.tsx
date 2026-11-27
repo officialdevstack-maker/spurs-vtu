@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
@@ -98,7 +99,7 @@ const focusRing =
 function Wordmark() {
   return (
     <Link href="/" className={`flex items-center gap-3 rounded-lg ${focusRing}`} aria-label="Spur VTU home">
-      <img src="/logo.png" alt="" className="size-9 rounded-lg" />
+      <Image src="/logo.png" alt="" width={36} height={36} className="rounded-lg" />
       <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">Spur VTU</span>
     </Link>
   );
