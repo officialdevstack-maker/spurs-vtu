@@ -99,14 +99,14 @@ export function FundingPanel({
         <p className="mt-2 font-[family-name:var(--font-display)] text-4xl font-bold tabular-nums">
           {balance === null ? "Unavailable" : formatNaira(balance)}
         </p>
-        <p className="mt-2 text-sm text-[#B9C8CB]">Deposits are credited to your VTU wallet after Flutterwave confirms payment.</p>
+        <p className="mt-2 text-sm text-[#B9C8CB]">Deposits are credited to your VTU wallet after your payment is confirmed.</p>
       </section>
 
       <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
         <h2 className="font-semibold">Permanent account</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
-          Use this account number for future bank transfers. Flutterwave requires your own BVN to create it; your BVN is sent to
-          Flutterwave for account verification and is not saved by VTU.
+          Use this account number for future bank transfers. Your BVN is securely sent to our payment provider for account
+          verification and is not saved by VTU.
         </p>
         {permanentAccount?.status === "active" && permanentAccount.accountNumber ? (
           <AccountDetails

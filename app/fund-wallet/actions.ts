@@ -31,7 +31,7 @@ function publicAccount(account: {
   accountName: string | null;
 }): FundingActionResult<FundingAccountResult> {
   if (!account.accountNumber || !account.bankName) {
-    return { ok: false, error: "Flutterwave did not return usable account details. Please try again." };
+    return { ok: false, error: "We couldn't retrieve usable account details. Please try again." };
   }
   return {
     ok: true,
@@ -59,8 +59,8 @@ export async function createPermanentFundingAccount(bvn: string): Promise<Fundin
   try {
     flutterwave = await getFlutterwave();
   } catch (error) {
-    console.error("[funding] Flutterwave is not configured", error instanceof Error ? error.name : "Unknown error");
-    return { ok: false, error: "Flutterwave funding is not available right now." };
+    console.error("[funding] Payment provider is not configured", error instanceof Error ? error.name : "Unknown error");
+    return { ok: false, error: "Funding is not available right now." };
   }
 
   try {
@@ -116,8 +116,8 @@ export async function createTemporaryFundingAccount(
   try {
     flutterwave = await getFlutterwave();
   } catch (error) {
-    console.error("[funding] Flutterwave is not configured", error instanceof Error ? error.name : "Unknown error");
-    return { ok: false, error: "Flutterwave funding is not available right now." };
+    console.error("[funding] Payment provider is not configured", error instanceof Error ? error.name : "Unknown error");
+    return { ok: false, error: "Funding is not available right now." };
   }
   const reference = randomUUID();
   const intent = await createFundingIntent({ reference, customerId: user.sub, amountKobo });

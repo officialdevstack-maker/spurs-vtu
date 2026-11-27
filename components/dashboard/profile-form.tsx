@@ -106,7 +106,7 @@ export function ProfileForm(props: {
         </p>
       </section>
 
-      <Section title="Identity and funding" hint="Your BVN is sent to Flutterwave to create your permanent account. We never store it.">
+      <Section title="Identity and funding" hint="Your BVN is securely sent to our payment provider to create your permanent account. We never store it.">
         <div className="flex items-center justify-between gap-4 py-3 text-sm">
           <span>Verification</span>
           <span className="font-medium">{props.verified === null ? "Not available" : props.verified ? "Verified" : "Not verified"}</span>
