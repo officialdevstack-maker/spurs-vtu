@@ -42,12 +42,14 @@ function AccountDetails({ account }: { account: FundingAccountResult }) {
 export function FundingPanel({
   balance,
   permanentAccount,
+  flutterwaveEnabled,
   paymentPointAccount,
   paymentPointEnabled,
   pendingIntents,
 }: {
   balance: number | null;
   permanentAccount: PermanentAccountView | null;
+  flutterwaveEnabled: boolean;
   paymentPointAccount: PaymentPointAccount | null;
   paymentPointEnabled: boolean;
   pendingIntents: FundingIntent[];
@@ -166,7 +168,10 @@ export function FundingPanel({
         </section>
       )}
 
-      <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
+      <section
+        hidden={!flutterwaveEnabled && !permanentAccount}
+        className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6"
+      >
         <h2 className="font-semibold">Permanent account</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
           Use this account number for future bank transfers. Your BVN is securely sent to our payment provider for account
@@ -180,7 +185,11 @@ export function FundingPanel({
               accountName: permanentAccount.accountName ?? "",
             }}
           />
-        ) : (
+        ) : permanentAccount?.status === "creating" ? (
+          <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            Flutterwave account setup is in progress. Refresh this page shortly.
+          </p>
+        ) : flutterwaveEnabled ? (
           <div className="mt-4">
             <label htmlFor="funding-bvn" className="text-sm font-medium">
               Your BVN
@@ -208,35 +217,50 @@ export function FundingPanel({
               {pending ? "Creating account…" : "Create permanent account"}
             </button>
           </div>
+        ) : (
+          <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            Flutterwave is disabled for new accounts. Your existing account remains active for payments.
+          </p>
         )}
         {permanentAccountResult && <AccountDetails account={permanentAccountResult} />}
       </section>
 
-      <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
+      <section
+        hidden={!flutterwaveEnabled && pendingIntents.length === 0}
+        className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6"
+      >
         <h2 className="font-semibold">Temporary account</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
           Create a bank account for a specific deposit. Transfer the exact amount shown while the account is active.
         </p>
-        <label htmlFor="funding-amount" className="mt-4 block text-sm font-medium">
-          Amount (₦)
-        </label>
-        <input
-          id="funding-amount"
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="5000"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, "").slice(0, 10))}
-          className={fieldClass}
-        />
-        <button
-          type="button"
-          onClick={createTemporary}
-          disabled={pending || !amount}
-          className="mt-4 h-11 rounded-xl border border-[#12343B] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#F2B632] dark:text-[#F2B632] dark:hover:bg-white/5 dark:focus-visible:ring-[#F2B632]"
-        >
-          {pending ? "Creating account…" : "Create temporary account"}
-        </button>
+        {flutterwaveEnabled ? (
+          <>
+            <label htmlFor="funding-amount" className="mt-4 block text-sm font-medium">
+              Amount (₦)
+            </label>
+            <input
+              id="funding-amount"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="5000"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, "").slice(0, 10))}
+              className={fieldClass}
+            />
+            <button
+              type="button"
+              onClick={createTemporary}
+              disabled={pending || !amount}
+              className="mt-4 h-11 rounded-xl border border-[#12343B] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#F2B632] dark:text-[#F2B632] dark:hover:bg-white/5 dark:focus-visible:ring-[#F2B632]"
+            >
+              {pending ? "Creating account…" : "Create temporary account"}
+            </button>
+          </>
+        ) : (
+          <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            Flutterwave is disabled for new accounts. Your existing temporary accounts remain active for payments.
+          </p>
+        )}
 
         {temporaryAccountResult && (
           <div className="mt-4 rounded-xl border border-[#F2B632]/60 bg-[#FFF8E1] p-4 dark:bg-[#F2B632]/10">

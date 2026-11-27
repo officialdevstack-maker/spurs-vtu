@@ -207,14 +207,14 @@ export function PaymentProvidersManager({
         </button>
       </div>
 
-      <div
+      <section
         id="flutterwave-panel"
         role="tabpanel"
         aria-labelledby="flutterwave-tab"
         tabIndex={0}
         hidden={activeProvider !== "flutterwave"}
+        className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6"
       >
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">Flutterwave</h2>
@@ -282,16 +282,15 @@ export function PaymentProvidersManager({
           </p>
         )}
       </section>
-      </div>
 
-      <div
+      <section
         id="paymentpoint-panel"
         role="tabpanel"
         aria-labelledby="paymentpoint-tab"
         tabIndex={0}
         hidden={activeProvider !== "paymentpoint"}
+        className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6"
       >
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">PaymentPoint</h2>
@@ -364,7 +363,6 @@ export function PaymentProvidersManager({
           </p>
         )}
       </section>
-      </div>
 
       <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
         Set <code className="font-[family-name:var(--font-geist-mono)]">PROVIDER_SECRET_KEY</code> in the server

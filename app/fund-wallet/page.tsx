@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { FundingPanel } from "@/components/funding/funding-panel";
 import { getFlutterwaveAccount, getPaymentPointAccount, getRecentFundingIntents } from "@/lib/db/wallet";
-import { getPaymentPointProviderSettings } from "@/lib/db/payment-providers";
+import {
+  getPaymentPointProviderSettings,
+  getPaymentProviderSettings,
+} from "@/lib/db/payment-providers";
 import { getNairaBalance } from "@/lib/wallet";
 import { requireSpursUser } from "@/lib/spurs";
 
@@ -12,11 +15,19 @@ export const instant = false;
 export default async function FundWalletPage() {
   await connection();
   const user = await requireSpursUser();
-  const [balance, permanentAccount, paymentPointAccount, pendingIntents, paymentPointSettings] = await Promise.all([
+  const [
+    balance,
+    permanentAccount,
+    paymentPointAccount,
+    pendingIntents,
+    flutterwaveSettings,
+    paymentPointSettings,
+  ] = await Promise.all([
     getNairaBalance(user.sub),
     getFlutterwaveAccount(user.sub),
     getPaymentPointAccount(user.sub),
     getRecentFundingIntents(user.sub),
+    getPaymentProviderSettings(),
     getPaymentPointProviderSettings(),
   ]);
   const accountView = permanentAccount
@@ -39,6 +50,7 @@ export default async function FundWalletPage() {
       <FundingPanel
         balance={balance}
         permanentAccount={accountView}
+        flutterwaveEnabled={flutterwaveSettings?.enabled ?? false}
         paymentPointAccount={paymentPointAccount}
         paymentPointEnabled={paymentPointSettings?.enabled ?? false}
         pendingIntents={pendingIntents}
