@@ -68,8 +68,9 @@ a temporary, amount-specific virtual account. VTU sends a BVN directly to
 Flutterwave to provision a permanent account and does not store it.
 
 PaymentPoint can be configured alongside Flutterwave under
-**Admin → Gateways → Payment** using the API key, API secret, business ID, and
-webhook security key from the PaymentPoint account. Configure
+**Admin → Gateways → Payment** using the API key, API secret, and business ID
+from the PaymentPoint account. If PaymentPoint provides a separate webhook
+signing key, enter it; otherwise the API secret is used. Configure
 `<APP_URL>/api/webhooks/paymentpoint` as its webhook URL. PaymentPoint webhook
 signatures are verified with HMAC-SHA256 before a matching account payment is
 credited. Customers need a phone number on their profile to create a

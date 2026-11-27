@@ -79,9 +79,9 @@ export async function savePaymentPointProvider(input: unknown): Promise<PaymentA
     const current = await db.getPaymentPointProviderSettings();
     if (
       !current &&
-      (!settings.apiKey || !settings.apiSecret || !settings.businessId || !settings.webhookSecret)
+      (!settings.apiKey || !settings.apiSecret || !settings.businessId)
     ) {
-      return fail("Enter the API key, API secret, business ID and webhook secret to add PaymentPoint.");
+      return fail("Enter the API key, API secret and business ID to add PaymentPoint.");
     }
     if (!(await db.savePaymentPointProvider(settings))) {
       return fail("No PaymentPoint changes were saved. Refresh the page and try again.");

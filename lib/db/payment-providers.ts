@@ -174,7 +174,7 @@ export async function savePaymentPointProvider(input: {
   const { rowCount } = await getPool().query(
     `insert into payment_providers
        (id, name, public_key_enc, secret_key_enc, business_id_enc, webhook_hash_enc, enabled)
-     values ('paymentpoint', 'PaymentPoint', $1, $2, $3, $4, $5)
+    values ('paymentpoint', 'PaymentPoint', $1, $2, $3, coalesce($4, $2), $5)
      on conflict (id) do update
        set public_key_enc = coalesce($1, payment_providers.public_key_enc),
            secret_key_enc = coalesce($2, payment_providers.secret_key_enc),

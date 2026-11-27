@@ -324,9 +324,9 @@ export function PaymentProvidersManager({
           />
           <CredentialField
             id="webhookSecret"
-            label="Webhook security key"
+            label="Webhook security key (optional)"
             saved={paymentPointSettings?.hasWebhookSecret ?? false}
-            hint="Enter the PaymentPoint security key used to sign webhook notifications."
+            hint="Enter a separate signing key if PaymentPoint provided one. Otherwise, the API secret is used."
           />
 
           <div className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
