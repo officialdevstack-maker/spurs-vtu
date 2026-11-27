@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -60,6 +60,9 @@ export function PaymentProvidersManager({
   paymentPointSettings: PaymentPointProviderSettings | null;
 }) {
   const router = useRouter();
+  const [activeProvider, setActiveProvider] = useState<"flutterwave" | "paymentpoint">("flutterwave");
+  const flutterwaveTab = useRef<HTMLButtonElement>(null);
+  const paymentPointTab = useRef<HTMLButtonElement>(null);
   const [enabled, setEnabled] = useState(settings?.enabled ?? true);
   const [paymentPointEnabled, setPaymentPointEnabled] = useState(paymentPointSettings?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
@@ -141,10 +144,76 @@ export function PaymentProvidersManager({
     return result;
   }
 
+  function moveProviderTab(event: KeyboardEvent<HTMLButtonElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next =
+      event.key === "Home"
+        ? "flutterwave"
+        : event.key === "End"
+          ? "paymentpoint"
+          : activeProvider === "flutterwave"
+            ? "paymentpoint"
+            : "flutterwave";
+    setActiveProvider(next);
+    if (next === "flutterwave") flutterwaveTab.current?.focus();
+    else paymentPointTab.current?.focus();
+  }
+
   return (
     <div className="space-y-5">
       {error && <FormError>{error}</FormError>}
 
+      <div
+        role="tablist"
+        aria-label="Payment gateways"
+        className="flex gap-2 border-b border-gray-200 dark:border-white/10"
+      >
+        <button
+          ref={flutterwaveTab}
+          id="flutterwave-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeProvider === "flutterwave"}
+          aria-controls="flutterwave-panel"
+          tabIndex={activeProvider === "flutterwave" ? 0 : -1}
+          onClick={() => setActiveProvider("flutterwave")}
+          onKeyDown={moveProviderTab}
+          className={`border-b-2 px-4 py-3 text-sm font-semibold ${
+            activeProvider === "flutterwave"
+              ? "border-[#F2B632] text-[#12343B] dark:text-white"
+              : "border-transparent text-gray-600 dark:text-[#9FB3B7]"
+          }`}
+        >
+          Flutterwave
+        </button>
+        <button
+          ref={paymentPointTab}
+          id="paymentpoint-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeProvider === "paymentpoint"}
+          aria-controls="paymentpoint-panel"
+          tabIndex={activeProvider === "paymentpoint" ? 0 : -1}
+          onClick={() => setActiveProvider("paymentpoint")}
+          onKeyDown={moveProviderTab}
+          className={`border-b-2 px-4 py-3 text-sm font-semibold ${
+            activeProvider === "paymentpoint"
+              ? "border-[#F2B632] text-[#12343B] dark:text-white"
+              : "border-transparent text-gray-600 dark:text-[#9FB3B7]"
+          }`}
+        >
+          PaymentPoint
+        </button>
+      </div>
+
+      <div
+        id="flutterwave-panel"
+        role="tabpanel"
+        aria-labelledby="flutterwave-tab"
+        tabIndex={0}
+        hidden={activeProvider !== "flutterwave"}
+      >
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -213,7 +282,15 @@ export function PaymentProvidersManager({
           </p>
         )}
       </section>
+      </div>
 
+      <div
+        id="paymentpoint-panel"
+        role="tabpanel"
+        aria-labelledby="paymentpoint-tab"
+        tabIndex={0}
+        hidden={activeProvider !== "paymentpoint"}
+      >
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -287,6 +364,7 @@ export function PaymentProvidersManager({
           </p>
         )}
       </section>
+      </div>
 
       <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
         Set <code className="font-[family-name:var(--font-geist-mono)]">PROVIDER_SECRET_KEY</code> in the server
