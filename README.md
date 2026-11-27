@@ -50,12 +50,12 @@ TLS for PostgreSQL connections. Server-side database access is available through
 `getPool` and `checkDatabaseConnection` in `lib/db`; the connection pool is
 created lazily on first use.
 
-## VTU wallet and Flutterwave funding
+## VTU wallet and payment gateway funding
 
 The VTU keeps customer NGN balances and an idempotent wallet ledger in its own
 PostgreSQL database. New VTU balances start at zero; existing balances in the
 former external wallet are not imported. Run `npm run db:migrate` before
-deploying this wallet change.
+deploying this wallet or payment gateway change.
 
 Set `PROVIDER_SECRET_KEY` in the server environment, then configure the
 Flutterwave public key, secret key, and webhook secret hash under
@@ -66,6 +66,14 @@ verifies each transaction with Flutterwave before crediting the local ledger.
 Customers can create a permanent virtual account using their own BVN or create
 a temporary, amount-specific virtual account. VTU sends a BVN directly to
 Flutterwave to provision a permanent account and does not store it.
+
+PaymentPoint can be configured alongside Flutterwave under
+**Admin → Gateways → Payment** using the API key, API secret, business ID, and
+webhook security key from the PaymentPoint account. Configure
+`<APP_URL>/api/webhooks/paymentpoint` as its webhook URL. PaymentPoint webhook
+signatures are verified with HMAC-SHA256 before a matching account payment is
+credited. Customers need a phone number on their profile to create a
+PaymentPoint virtual account.
 
 Payment provider credentials are encrypted at rest. Set `PROVIDER_SECRET_KEY`
 to a dedicated, randomly generated 32-byte base64 key before saving provider

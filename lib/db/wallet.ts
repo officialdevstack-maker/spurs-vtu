@@ -595,6 +595,28 @@ export async function applyPaymentPointPayment(input: {
       return "not_found";
     }
 
+    const concurrentPayment = await client.query<{
+      customer_id: string;
+      account_number: string;
+      amount_kobo: string;
+    }>(
+      `select customer_id, account_number, amount_kobo::text
+       from paymentpoint_payments where transaction_id = $1`,
+      [input.transactionId],
+    );
+    if (concurrentPayment.rows[0]) {
+      const prior = concurrentPayment.rows[0];
+      if (
+        prior.customer_id !== customerId ||
+        prior.account_number !== input.accountNumber ||
+        BigInt(prior.amount_kobo) !== BigInt(input.amountKobo)
+      ) {
+        throw new Error("PaymentPoint transaction details changed after it was credited.");
+      }
+      await client.query("commit");
+      return "duplicate";
+    }
+
     await client.query(
       `insert into vtu_wallets (customer_id) values ($1)
        on conflict (customer_id) do nothing`,
