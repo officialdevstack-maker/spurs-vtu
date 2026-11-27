@@ -119,7 +119,7 @@ export function FundingPanel({
           setError(result.error);
         }
       } catch {
-        setError("We couldn't create your PaymentPoint account. Please try again.");
+        setError("We couldn't create your account. Please try again.");
       }
     });
   }
@@ -137,7 +137,7 @@ export function FundingPanel({
           setError(result.error);
         }
       } catch {
-        setError("We couldn't create a PaymentPoint temporary account. Please try again.");
+        setError("We couldn't create a one-time account. Please try again.");
       }
     });
   }
@@ -154,9 +154,9 @@ export function FundingPanel({
 
       {(paymentPointEnabled || paymentPointAccount) && (
         <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6">
-          <h2 className="font-semibold">PaymentPoint permanent account</h2>
+          <h2 className="font-semibold">Repeat-transfer account</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
-            Use this account for repeat bank transfers. Payments are added to your VTU wallet after PaymentPoint confirms them.
+            Use this account for repeat bank transfers. Payments are added to your VTU wallet after they are confirmed.
           </p>
           {paymentPointAccount?.status === "active" && paymentPointAccount.accountNumber ? (
             <AccountDetails
@@ -177,17 +177,17 @@ export function FundingPanel({
               disabled={pending}
               className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {pending ? "Creating account…" : "Create PaymentPoint permanent account"}
+              {pending ? "Creating account…" : "Create repeat-transfer account"}
             </button>
           ) : (
             <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-              PaymentPoint is disabled for new accounts. Your existing account remains active for payments.
+              New account creation is temporarily unavailable. Your existing account remains active for payments.
             </p>
           )}
           {paymentPointAccountResult && <AccountDetails account={paymentPointAccountResult} />}
           {!paymentPointEnabled && paymentPointAccount?.status === "active" && (
             <p role="status" className="mt-3 text-xs text-gray-600 dark:text-[#9FB3B7]">
-              PaymentPoint is disabled for new accounts. Your existing account remains active for payments.
+              New account creation is temporarily unavailable. Your existing account remains active for payments.
             </p>
           )}
         </section>
@@ -197,9 +197,9 @@ export function FundingPanel({
         hidden={!paymentPointEnabled && paymentPointPendingIntents.length === 0}
         className="rounded-2xl border border-gray-200 p-5 dark:border-white/10 sm:p-6"
       >
-        <h2 className="font-semibold">PaymentPoint temporary account</h2>
+        <h2 className="font-semibold">One-time transfer account</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
-          Create an OPay account for one deposit. Transfer exactly the amount shown while the account is active.
+          Create an account for one deposit. Transfer exactly the amount shown while the account is active.
         </p>
         {paymentPointEnabled ? (
           <>
@@ -221,12 +221,12 @@ export function FundingPanel({
               disabled={pending || !paymentPointAmount}
               className="mt-4 h-11 rounded-xl bg-[#F2B632] px-5 text-sm font-semibold text-[#12343B] outline-none hover:bg-[#E5A720] focus-visible:ring-2 focus-visible:ring-[#12343B] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {pending ? "Creating account…" : "Create PaymentPoint temporary account"}
+              {pending ? "Creating account…" : "Create one-time account"}
             </button>
           </>
         ) : (
           <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-            PaymentPoint is disabled for new accounts. Existing temporary accounts remain active for payments.
+            New account creation is temporarily unavailable. Existing accounts remain active for payments.
           </p>
         )}
 
@@ -244,7 +244,7 @@ export function FundingPanel({
 
         {paymentPointPendingIntents.length > 0 && (
           <div className="mt-5 space-y-3">
-            <h3 className="text-sm font-semibold">Recent PaymentPoint temporary accounts</h3>
+            <h3 className="text-sm font-semibold">Recent one-time accounts</h3>
             {paymentPointPendingIntents.map((intent) => (
               <div key={intent.reference} className="rounded-xl bg-gray-100 p-4 text-sm dark:bg-white/5">
                 <p className="font-semibold">
@@ -284,7 +284,7 @@ export function FundingPanel({
           />
         ) : permanentAccount?.status === "creating" ? (
           <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-            Flutterwave account setup is in progress. Refresh this page shortly.
+            Account setup is in progress. Refresh this page shortly.
           </p>
         ) : flutterwaveEnabled ? (
           <div className="mt-4">
@@ -316,7 +316,7 @@ export function FundingPanel({
           </div>
         ) : (
           <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-            Flutterwave is disabled for new accounts. Your existing account remains active for payments.
+            New account creation is temporarily unavailable. Your existing account remains active for payments.
           </p>
         )}
         {permanentAccountResult && <AccountDetails account={permanentAccountResult} />}
@@ -355,7 +355,7 @@ export function FundingPanel({
           </>
         ) : (
           <p role="status" className="mt-4 text-sm text-gray-600 dark:text-[#9FB3B7]">
-            Flutterwave is disabled for new accounts. Your existing temporary accounts remain active for payments.
+            New account creation is temporarily unavailable. Your existing accounts remain active for payments.
           </p>
         )}
 
