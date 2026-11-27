@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Familjen_Grotesk, Figtree, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { THEME_SCRIPT } from "@/lib/theme";
+import { SITE_URL } from "@/lib/seo";
 import type { ReactNode } from "react";
 import "./globals.css";
 
@@ -22,11 +23,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: SITE_URL,
   title: "Spur VTU",
   description: "Airtime, data, cable TV and electricity from one wallet.",
+  applicationName: "Spur VTU",
   icons: {
     icon: "/favicon.png",
     apple: "/logo.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_NG",
+    siteName: "Spur VTU",
+    title: "Spur VTU",
+    description: "Airtime, data, cable TV and electricity from one wallet.",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512, alt: "Spur VTU" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Spur VTU",
+    description: "Airtime, data, cable TV and electricity from one wallet.",
+    images: ["/icons/icon-512.png"],
   },
 };
 

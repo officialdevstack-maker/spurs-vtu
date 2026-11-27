@@ -2,7 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GraduationCap, Smartphone, Tv, Wifi, Zap, type LucideIcon } from "lucide-react";
 
-export const metadata: Metadata = { title: "Services | Spur VTU" };
+export const metadata: Metadata = {
+  title: "Services | Spur VTU",
+  description: "Explore airtime, mobile data, cable TV and electricity services from your Spur VTU wallet.",
+  alternates: { canonical: "/services" },
+  openGraph: {
+    type: "website",
+    url: "/services",
+    siteName: "Spur VTU",
+    title: "Services | Spur VTU",
+    description: "Explore airtime, mobile data, cable TV and electricity services from your Spur VTU wallet.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Services | Spur VTU",
+    description: "Explore airtime, mobile data, cable TV and electricity services from your Spur VTU wallet.",
+  },
+};
 
 type Service = {
   name: string;

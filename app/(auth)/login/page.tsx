@@ -6,6 +6,7 @@ import { spurs } from "@/lib/spurs";
 export const metadata: Metadata = {
   title: "Log in | Spur VTU",
   description: "Log in to Spur VTU with your Spurs account.",
+  robots: { index: false, follow: false },
 };
 
 /**

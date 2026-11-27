@@ -20,6 +20,23 @@ export const metadata: Metadata = {
   title: "Spur VTU | Airtime, data and bills in seconds",
   description:
     "Fund your VTU wallet with Flutterwave, then buy airtime, data, cable TV and electricity in a few taps. Instant delivery and automatic refunds.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Spur VTU",
+    title: "Spur VTU | Airtime, data and bills in seconds",
+    description:
+      "Fund your VTU wallet with Flutterwave, then buy airtime, data, cable TV and electricity in a few taps. Instant delivery and automatic refunds.",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512, alt: "Spur VTU" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Spur VTU | Airtime, data and bills in seconds",
+    description:
+      "Fund your VTU wallet with Flutterwave, then buy airtime, data, cable TV and electricity in a few taps. Instant delivery and automatic refunds.",
+    images: ["/icons/icon-512.png"],
+  },
 };
 
 const NAV = [
