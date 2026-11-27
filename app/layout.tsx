@@ -24,6 +24,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Spur VTU",
   description: "Airtime, data, cable TV and electricity from one wallet.",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

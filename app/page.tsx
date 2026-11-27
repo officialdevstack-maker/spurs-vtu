@@ -98,12 +98,7 @@ const focusRing =
 function Wordmark() {
   return (
     <Link href="/" className={`flex items-center gap-3 rounded-lg ${focusRing}`} aria-label="Spur VTU home">
-      <span
-        aria-hidden="true"
-        className="grid size-9 place-items-center rounded-lg bg-[#F2B632] font-[family-name:var(--font-display)] text-lg font-bold text-[#12343B]"
-      >
-        S
-      </span>
+      <img src="/logo.png" alt="" className="size-9 rounded-lg" />
       <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">Spur VTU</span>
     </Link>
   );

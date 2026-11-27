@@ -43,12 +43,7 @@ const ITEMS_KEY = "spur-nav-items";
 export function Wordmark({ textClassName = "", suffix }: { textClassName?: string; suffix?: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span
-        aria-hidden="true"
-        className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#F2B632] text-lg font-bold text-[#12343B]"
-      >
-        S
-      </span>
+      <img src="/logo.png" alt="" className="size-9 shrink-0 rounded-lg" />
       <span className={`text-xl font-bold tracking-tight ${textClassName}`}>
         Spur VTU
         {suffix && (
