@@ -111,9 +111,11 @@ In **Admin → Gateways → Providers**, configure the Bilalsadasub username and
 password with **Log in for a token** authentication and the **Token** scheme.
 The preset requests `/api/user` using HTTP Basic Auth
 and reads the `AccessToken` response field. Configure provider network codes,
-cable operator codes, and provider plan IDs. The migration also configures the
-same token flow for `madisync`; verify its saved username and password are the
-provider's login credentials. Use Bilalsadasub's
+cable operator codes, and provider plan IDs. The **Auto-fill** action in the
+provider settings fetches Bilalsadasub's network IDs and matches them to local
+networks by name; unmatched networks keep their existing codes. The migration
+also configures the same token flow for `madisync`; verify its saved username
+and password are the provider's login credentials. Use Bilalsadasub's
 [API documentation](https://docs.bilalsadasub.com) to look up IDs for your
 account. Keep the preset disabled until credentials and ID mappings are set.
 

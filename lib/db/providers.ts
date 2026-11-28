@@ -237,7 +237,11 @@ export async function deleteEndpoint(providerId: string, endpointId: string): Pr
   );
 }
 
-export async function getProviderForCall(providerId: string, service: ProviderService) {
+export async function getProviderForCall(
+  providerId: string,
+  service: ProviderService,
+  includeDisabled = false,
+) {
   const [providerResult, codesResult, cableCodesResult] = await Promise.all([
     getPool().query<
       Omit<ProviderRow, "has_secret"> & {
@@ -254,8 +258,8 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
               e.response_map as endpoint_map
        from providers p
        join provider_endpoints e on e.provider_id = p.id and e.service = $2 and e.active
-       where p.id = $1 and p.enabled`,
-      [providerId, service],
+       where p.id = $1 and ($3::boolean or p.enabled)`,
+      [providerId, service, includeDisabled],
     ),
     getPool().query<{ network_id: string; code: string }>(
       "select network_id, code from provider_network_codes where provider_id = $1",
@@ -312,6 +316,14 @@ export async function listNetworkOptions(): Promise<NetworkOption[]> {
     "select id, name from networks order by sort_order, name",
   );
   return rows;
+}
+
+export async function getNetworkCodes(providerId: string): Promise<Record<string, string>> {
+  const { rows } = await getPool().query<{ network_id: string; code: string }>(
+    "select network_id, code from provider_network_codes where provider_id = $1",
+    [providerId],
+  );
+  return Object.fromEntries(rows.map((row) => [row.network_id, row.code]));
 }
 
 export async function listCableOperatorOptions(): Promise<NetworkOption[]> {

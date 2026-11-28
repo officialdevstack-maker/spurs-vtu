@@ -9,6 +9,8 @@ import {
 import { slugify } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/providers";
 import type { CableOperatorCodeFields, EndpointFields, ProviderFields } from "@/lib/db/providers";
+import { getBilalsadasubNetworks } from "@/lib/providers/bilalsadasub";
+import { mergeBilalsadasubNetworkCodes } from "@/lib/providers/bilalsadasub-network-map";
 import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
@@ -251,6 +253,47 @@ export async function saveNetworkCodes(
   }
   return run(() => db.saveNetworkCodes(providerId, codes), undefined, () =>
     recordAudit(admin, { action: "provider.network_codes.save", target: providerId, summary: "Saved network codes", meta: { networks: codes.map((c) => c.networkId) } }));
+}
+
+export async function autoFillBilalsadasubNetworkCodes(providerId: string): Promise<ActionResult> {
+  const admin = await requirePermission("gateways.manage");
+  if (providerId !== "bilalsadasub") return BAD_INPUT;
+
+  try {
+    const [networks, currentCodes, remoteNetworks] = await Promise.all([
+      db.listNetworkOptions(),
+      db.getNetworkCodes(providerId),
+      getBilalsadasubNetworks(),
+    ]);
+    const { codes: mergedCodes, matched: matches } = mergeBilalsadasubNetworkCodes(
+      remoteNetworks,
+      networks,
+      currentCodes,
+    );
+    if (matches === 0) {
+      return fail("No Bilalsadasub networks matched local networks. Existing codes were not changed.");
+    }
+    if (!(await db.saveNetworkCodes(
+      providerId,
+      Object.entries(mergedCodes).map(([networkId, code]) => ({ networkId, code })),
+    ))) {
+      return NOT_FOUND;
+    }
+    await recordAudit(admin, {
+      action: "provider.network_codes.autofill",
+      target: providerId,
+      summary: "Auto-filled Bilalsadasub network codes",
+      meta: { matchedNetworks: matches },
+    });
+    revalidatePath(PROVIDERS_PATH);
+    return { ok: true };
+  } catch (error) {
+    console.error(
+      "[providers] Could not auto-fill Bilalsadasub network codes",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    return fail(error instanceof Error ? error.message : "Could not fetch Bilalsadasub networks.");
+  }
 }
 
 export async function saveCableOperatorCodes(

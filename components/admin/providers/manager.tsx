@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin/providers";
 import {
   createProvider,
+  autoFillBilalsadasubNetworkCodes,
   removeEndpoint,
   removeProvider,
   saveEndpoint,
@@ -81,12 +82,15 @@ export function ProvidersManager({
   const close = () => setDialog(null);
   const canAddEndpoint = !!provider && provider.endpoints.length < PROVIDER_SERVICES.length;
 
-  function perform(action: () => Promise<ActionResult>) {
+  function perform(action: () => Promise<ActionResult>, successMessage?: string) {
     setError(null);
     startTransition(async () => {
       try {
         const result = await action();
-        if (result.ok) router.refresh();
+        if (result.ok) {
+          if (successMessage) toast.success(successMessage);
+          router.refresh();
+        }
         else setError(result.error);
       } catch (cause) {
         console.error("[providers] Failed to save changes", cause);
@@ -204,15 +208,31 @@ export function ProvidersManager({
                     Match this provider’s own network IDs for each Spur network.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDialog({ kind: "network-codes" })}
-                  className={btnIcon}
-                  aria-label={`Edit network codes for ${provider.name}`}
-                  title="Edit network codes"
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {provider.id === "bilalsadasub" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        perform(
+                          () => autoFillBilalsadasubNetworkCodes(provider.id),
+                          "Bilalsadasub network codes updated",
+                        )
+                      }
+                      className={btnGhost}
+                    >
+                      Auto-fill
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDialog({ kind: "network-codes" })}
+                    className={btnIcon}
+                    aria-label={`Edit network codes for ${provider.name}`}
+                    title="Edit network codes"
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
 
               {networks.length === 0 ? (

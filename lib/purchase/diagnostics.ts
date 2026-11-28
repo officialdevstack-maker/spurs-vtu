@@ -60,5 +60,6 @@ export function logProviderFailure(
     httpStatus: result.status,
     outcome,
     response: summarise(result.data, known),
+    more: result.data.detail ?? result.data
   });
 }

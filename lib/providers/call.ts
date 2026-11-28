@@ -117,6 +117,7 @@ async function execute(request: Prepared): Promise<ProviderResponse> {
     data = JSON.parse(text);
     console.log(`Call ${request.url}:`, data);
   } catch (error) {
+    console.warn(`Call ${request.url} returned non-JSON response:`, text, error);
     if (!(error instanceof SyntaxError)) throw error;
   }
   return { ok: response.ok, status: response.status, data };

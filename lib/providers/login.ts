@@ -8,7 +8,11 @@ const MIN_TTL = 30;
 const MAX_TTL = 24 * 60 * 60;
 const SKEW = 60;
 
-export async function getLoginToken(providerId: string, fresh = false): Promise<string> {
+export async function getLoginToken(
+  providerId: string,
+  fresh = false,
+  includeDisabled = false,
+): Promise<string> {
   if (!fresh) {
     try {
       const cached = await getCachedToken(providerId);
@@ -18,7 +22,7 @@ export async function getLoginToken(providerId: string, fresh = false): Promise<
     }
   }
 
-  const login = await getProviderForCall(providerId, "auth");
+  const login = await getProviderForCall(providerId, "auth", includeDisabled);
   if (!login) throw new Error("This provider logs in for a token but has no active Login endpoint.");
   const tokenPath = login.responseMap.token;
   if (!tokenPath) throw new Error("The Login endpoint needs a token path in its response mapping.");
