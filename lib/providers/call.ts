@@ -70,7 +70,7 @@ async function prepare(providerId: string, service: ProviderService, vars: Vars,
         url.searchParams.set(provider.authName, provider.secret);
         break;
       case "login":
-        headers.Authorization = `Bearer ${await getLoginToken(providerId, freshToken)}`;
+        headers.Authorization = `${provider.authName || "Bearer"} ${await getLoginToken(providerId, freshToken)}`;
         break;
     }
 

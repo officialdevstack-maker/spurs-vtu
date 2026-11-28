@@ -104,12 +104,16 @@ that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
 
 Run `npm run db:migrate` to add the disabled Bilalsadasub provider preset for
 airtime, data, and cable. The migration also updates the body templates for
-existing `madisync` airtime, data, and cable endpoints; it leaves their base
-URL, paths, and authentication unchanged.
+existing `madisync` airtime, data, and cable endpoints without changing their
+base URL or purchase endpoint paths.
 
-In **Admin → Gateways → Providers**, set the Bilalsadasub API key as
-`Token <AccessToken>` with header name `Authorization`, then configure provider
-network codes, cable operator codes, and provider plan IDs. Use Bilalsadasub's
+In **Admin → Gateways → Providers**, configure the Bilalsadasub username and
+password with **Log in for a token** authentication and the **Token** scheme.
+The preset requests `/api/user` using HTTP Basic Auth
+and reads the `AccessToken` response field. Configure provider network codes,
+cable operator codes, and provider plan IDs. The migration also configures the
+same token flow for `madisync`; verify its saved username and password are the
+provider's login credentials. Use Bilalsadasub's
 [API documentation](https://docs.bilalsadasub.com) to look up IDs for your
 account. Keep the preset disabled until credentials and ID mappings are set.
 

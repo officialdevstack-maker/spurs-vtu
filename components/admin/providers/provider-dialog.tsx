@@ -21,7 +21,7 @@ export function ProviderDialog({
   const [kind, setKind] = useState<ProviderKind>(provider?.kind ?? "api");
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "");
   const [authType, setAuthType] = useState<AuthType>(provider?.authType ?? "bearer");
-  const [authName, setAuthName] = useState(provider?.authName ?? "");
+  const [authName, setAuthName] = useState(provider?.authName ?? "Bearer");
   const [authUsername, setAuthUsername] = useState(provider?.authUsername ?? "");
   const [secret, setSecret] = useState("");
   const [priority, setPriority] = useState(String(provider?.priority ?? 1));
@@ -113,7 +113,11 @@ export function ProviderDialog({
           <select
             id={`${base}-auth`}
             value={authType}
-            onChange={(event) => setAuthType(event.target.value as AuthType)}
+            onChange={(event) => {
+              const next = event.target.value as AuthType;
+              setAuthType(next);
+              setAuthName(next === "login" ? "Bearer" : "");
+            }}
             className={inputClass()}
           >
             {AUTH_TYPES.map((item) => (
@@ -146,6 +150,24 @@ export function ProviderDialog({
               maxLength={100}
               className={inputClass()}
             />
+          </Field>
+        )}
+
+        {auth.tokenScheme && (
+          <Field
+            id={`${base}-token-scheme`}
+            label="Token scheme"
+            hint="Prefix used in the Authorization header for service requests."
+          >
+            <select
+              id={`${base}-token-scheme`}
+              value={authName || "Bearer"}
+              onChange={(event) => setAuthName(event.target.value)}
+              className={inputClass()}
+            >
+              <option value="Bearer">Bearer</option>
+              <option value="Token">Token</option>
+            </select>
           </Field>
         )}
 

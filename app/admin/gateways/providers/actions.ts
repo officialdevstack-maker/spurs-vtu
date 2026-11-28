@@ -76,6 +76,9 @@ function parseProvider(input: unknown, isNew: boolean): ProviderFields | string 
   if (authType.extra === "name" && !/^[A-Za-z0-9_-]{1,40}$/.test(authName)) {
     return `Enter the ${authType.extraLabel?.toLowerCase()} using letters, numbers, - or _.`;
   }
+  if (authType.id === "login" && authName && authName !== "Bearer" && authName !== "Token") {
+    return "Choose Bearer or Token for the login token scheme.";
+  }
 
   const authUsername = clean(raw.authUsername);
   if (authType.extra === "username" && (!authUsername || authUsername.length > 100)) {
@@ -103,7 +106,12 @@ function parseProvider(input: unknown, isNew: boolean): ProviderFields | string 
     kind,
     baseUrl,
     authType: authType.id,
-    authName: authType.extra === "name" ? authName : "",
+    authName:
+      authType.extra === "name"
+        ? authName
+        : authType.id === "login"
+          ? authName || "Bearer"
+          : "",
     authUsername: authType.extra === "username" ? authUsername : "",
     secret: authType.id === "none" ? "" : secret,
     enabled: raw.enabled,

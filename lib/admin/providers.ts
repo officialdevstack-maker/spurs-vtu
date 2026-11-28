@@ -19,6 +19,7 @@ export const AUTH_TYPES: {
   extra?: "name" | "username";
   extraLabel?: string;
   extraHint?: string;
+  tokenScheme?: boolean;
 }[] = [
   { id: "bearer", label: "Bearer token", secretLabel: "Token" },
   {
@@ -45,6 +46,7 @@ export const AUTH_TYPES: {
     extra: "username",
     extraLabel: "Username",
     extraHint: "Needs an endpoint with service “Login (get token)”.",
+    tokenScheme: true,
   },
   { id: "none", label: "No authentication", secretLabel: "" },
 ];
