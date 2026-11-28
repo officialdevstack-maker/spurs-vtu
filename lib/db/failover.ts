@@ -29,7 +29,7 @@ export async function planAlternates(
      join providers p on p.id = c.provider_id and p.enabled
      join provider_endpoints e on e.provider_id = p.id and e.service = $1 and e.active
      where c.service = $1 and c.plan_id = $2 and c.provider_id <> $3
-     order by p.priority, p.name`,
+     order by c.cost, p.priority, p.name`,
     [service, planId, excludeProviderId],
   );
   return rows.map((row) => ({

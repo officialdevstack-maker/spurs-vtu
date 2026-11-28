@@ -1,7 +1,7 @@
 export type ProviderKind = "api" | "simhost";
 export type AuthType = "bearer" | "api_key_header" | "basic" | "query_param" | "login" | "none";
 export type ProviderService =
-  | "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "electricity_verify" | "exam" | "balance" | "auth" | "status" | "networks";
+  | "airtime" | "data" | "cable" | "cable_verify" | "electricity" | "electricity_verify" | "exam" | "balance" | "auth" | "status" | "networks" | "data_plans";
 export type HttpMethod = "GET" | "POST";
 
 export type ResponseField = "status" | "name" | "address" | "balance" | "token" | "expires_in";
@@ -61,6 +61,7 @@ export const PROVIDER_SERVICES: { id: ProviderService; label: string }[] = [
   { id: "exam", label: "Exam pins" },
   { id: "balance", label: "Balance check" },
   { id: "networks", label: "Network catalog" },
+  { id: "data_plans", label: "Data plan catalog" },
   { id: "auth", label: "Login (get token)" },
   { id: "status", label: "Order status check" },
 ];

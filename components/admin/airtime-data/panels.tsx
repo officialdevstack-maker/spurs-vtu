@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
+import { Pencil, Plus, Receipt, RefreshCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Tabs } from "@/components/admin/tabs";
 import { btnIcon, btnPrimary } from "@/components/admin/modal";
 import { formatNaira } from "@/lib/format";
@@ -28,6 +29,7 @@ import {
   setDiscountActive,
   setNetworkTypeEnabled,
   setPlanActive,
+  syncDataPlanCatalogs,
   type ActionResult,
 } from "@/app/admin/products/airtime-data/actions";
 import { ConfirmDialog, NameDialog } from "./dialogs";
@@ -347,6 +349,7 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
   const types = allTypes.filter((type) => type.service === "data");
   const [filter, setFilter] = useState("all");
   const [deleting, setDeleting] = useState<DataPlan | null>(null);
+  const [syncing, startSync] = useTransition();
   const activeFilter = filter === "all" || types.some((type) => type.id === filter) ? filter : "all";
   const visible = activeFilter === "all" ? network.plans : network.plans.filter((plan) => plan.type === activeFilter);
 
@@ -367,20 +370,37 @@ export function DataPlansPanel({ network, types: allTypes, commit }: PanelProps)
           </h3>
           <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">Turn a plan off to hide it from customers.</p>
         </div>
-        {types.length === 0 ? (
-          <button type="button" disabled className={`${btnPrimary} inline-flex shrink-0 items-center gap-2`}>
-            <Plus className="size-5" aria-hidden="true" />
-            Add plan
-          </button>
-        ) : (
-          <Link
-            href={newPlanUrl(network.id, activeFilter === "all" ? undefined : activeFilter)}
-            className={`${btnPrimary} inline-flex shrink-0 items-center gap-2`}
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={syncing}
+            onClick={() =>
+              startSync(async () => {
+                const result = await syncDataPlanCatalogs(network.id);
+                if (result.ok) toast.success(result.message ?? "Data plans synced");
+                else toast.error(result.error);
+              })
+            }
+            className={`${btnPrimary} inline-flex items-center gap-2`}
           >
-            <Plus className="size-5" aria-hidden="true" />
-            Add plan
-          </Link>
-        )}
+            <RefreshCw className={`size-5 ${syncing ? "animate-spin" : ""}`} aria-hidden="true" />
+            {syncing ? "Syncing…" : "Sync data plans"}
+          </button>
+          {types.length === 0 ? (
+            <button type="button" disabled className={`${btnPrimary} inline-flex items-center gap-2`}>
+              <Plus className="size-5" aria-hidden="true" />
+              Add plan
+            </button>
+          ) : (
+            <Link
+              href={newPlanUrl(network.id, activeFilter === "all" ? undefined : activeFilter)}
+              className={`${btnPrimary} inline-flex items-center gap-2`}
+            >
+              <Plus className="size-5" aria-hidden="true" />
+              Add plan
+            </Link>
+          )}
+        </div>
       </div>
       {types.length === 0 && (
         <p className="mb-4 text-sm text-gray-600 dark:text-[#9FB3B7]">

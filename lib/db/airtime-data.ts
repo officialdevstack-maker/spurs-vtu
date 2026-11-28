@@ -17,6 +17,28 @@ import type {
   Service,
 } from "@/lib/admin/airtime-data";
 import { formatVolume, resolvePackagePrice } from "@/lib/admin/airtime-data";
+import {
+  matchCatalogPlanType,
+  normalizeCatalogName,
+  parseCatalogPlanName,
+} from "@/lib/providers/data-plan-catalog-map";
+
+export type ProviderPlanCatalogRow = {
+  providerId: string;
+  planId: string;
+  network: string;
+  planName: string;
+  planType: string;
+  planDay: string;
+  amount: number;
+};
+
+export type DataPlanSyncResult = {
+  created: number;
+  updated: number;
+  skipped: number;
+  skippedTypes: string[];
+};
 
 export type PlanFields = {
   type: string;
@@ -262,6 +284,214 @@ export async function setNetworkTypeEnabled(network: string, type: string, enabl
       [network, type, enabled],
     ),
   );
+}
+
+export async function syncProviderDataPlans(
+  networkId: string,
+  rows: ProviderPlanCatalogRow[],
+): Promise<DataPlanSyncResult> {
+  const client = await getPool().connect();
+  const result: DataPlanSyncResult = { created: 0, updated: 0, skipped: 0, skippedTypes: [] };
+  try {
+    await client.query("begin");
+    const network = await client.query<{ id: string; name: string }>(
+      "select id, name from networks where id = $1",
+      [networkId],
+    );
+    if (!network.rowCount) throw dbFail("BAD_DATA_TYPE");
+
+    const types = await client.query<{ id: string; label: string }>(
+      `select dt.id, dt.label
+       from data_types dt
+       join network_data_types ndt on ndt.type_id = dt.id
+       where dt.service = 'data' and ndt.network_id = $1 and ndt.enabled`,
+      [networkId],
+    );
+    const sourceProviders = [...new Set(rows.map((row) => row.providerId))];
+    const existing = await client.query<{
+      id: string;
+      type_id: string;
+      size: string;
+      validity: string;
+      provider_id: string | null;
+      provider_plan_id: string;
+    }>(
+      `select id, type_id, size, validity, provider_id, provider_plan_id
+       from data_plans
+       where network_id = $1`,
+      [networkId],
+    );
+    const existingFallbacks = await client.query<{
+      plan_id: string;
+      provider_id: string;
+      provider_plan_id: string;
+    }>(
+      `select c.plan_id, c.provider_id, c.provider_plan_id
+       from plan_provider_codes c
+       join data_plans p on p.id = c.plan_id and p.network_id = $1
+       where c.service = 'data'`,
+      [networkId],
+    );
+    const existingByProviderPlan = new Map<string, string>();
+    for (const row of existing.rows) {
+      if (row.provider_id) {
+        existingByProviderPlan.set(`${row.provider_id}\u0000${row.provider_plan_id}`, row.id);
+      }
+    }
+    for (const row of existingFallbacks.rows) {
+      existingByProviderPlan.set(`${row.provider_id}\u0000${row.provider_plan_id}`, row.plan_id);
+    }
+    const remoteNetwork = normalizeCatalogName(network.rows[0].name);
+    const skippedTypeSet = new Set<string>();
+    const grouped = new Map<string, {
+      typeId: string;
+      size: string;
+      volume: number;
+      unit: "mb" | "gb";
+      validity: string;
+      offers: ProviderPlanCatalogRow[];
+    }>();
+
+    for (const row of rows) {
+      if (normalizeCatalogName(row.network) !== remoteNetwork) continue;
+
+      const typeId = matchCatalogPlanType(row.planType, types.rows);
+      const parsed = parseCatalogPlanName(row.planName);
+      if (!typeId) {
+        result.skipped += 1;
+        skippedTypeSet.add(row.planType);
+        continue;
+      }
+      if (!parsed) {
+        result.skipped += 1;
+        continue;
+      }
+
+      const size = formatVolume(parsed.volume, parsed.unit);
+      const validity = row.planDay.trim();
+      if (!validity) {
+        result.skipped += 1;
+        continue;
+      }
+      const key = [
+        typeId,
+        size.toLowerCase(),
+        normalizeCatalogName(validity),
+      ].join("\u0000");
+      const group = grouped.get(key) ?? {
+        typeId,
+        size,
+        volume: parsed.volume,
+        unit: parsed.unit,
+        validity,
+        offers: [],
+      };
+      group.offers.push(row);
+      grouped.set(key, group);
+    }
+
+    for (const group of grouped.values()) {
+      const cheapestByProvider = new Map<string, ProviderPlanCatalogRow>();
+      for (const offer of group.offers) {
+        const current = cheapestByProvider.get(offer.providerId);
+        if (!current || offer.amount < current.amount) cheapestByProvider.set(offer.providerId, offer);
+      }
+      const offers = [...cheapestByProvider.values()].sort(
+        (a, b) => a.amount - b.amount || a.providerId.localeCompare(b.providerId),
+      );
+      const cheapest = offers[0];
+      if (!cheapest) continue;
+
+      const existingId = offers
+        .map((offer) => existingByProviderPlan.get(`${offer.providerId}\u0000${offer.planId}`))
+        .find((id): id is string => Boolean(id)) ??
+        (() => {
+          const matches = existing.rows.filter((row) =>
+          row.type_id === group.typeId &&
+          row.size.toLowerCase() === group.size.toLowerCase() &&
+            normalizeCatalogName(row.validity) === normalizeCatalogName(group.validity),
+          );
+          return matches.length === 1 ? matches[0].id : undefined;
+        })();
+      const syncedPlanId = existingId ?? randomUUID();
+
+      if (existingId) {
+        await client.query(
+          `update data_plans
+           set size = $2, volume = $3, unit = $4, validity = $5, cost = $6,
+               provider_id = $7, provider_plan_id = $8, type_id = $9
+           where id = $1`,
+          [
+            existingId,
+            group.size,
+            group.volume,
+            group.unit,
+            group.validity,
+            Math.round(cheapest.amount * 100) / 100,
+            cheapest.providerId,
+            cheapest.planId,
+            group.typeId,
+          ],
+        );
+        result.updated += 1;
+      } else {
+        const cost = Math.round(cheapest.amount * 100) / 100;
+        const price = Math.round(cost * 1.02 * 100) / 100;
+        await client.query(
+          `insert into data_plans
+             (id, network_id, type_id, size, volume, unit, validity, cost, price,
+              provider_id, provider_plan_id, active)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false)`,
+          [
+             syncedPlanId,
+            networkId,
+            group.typeId,
+            group.size,
+            group.volume,
+            group.unit,
+            group.validity,
+            cost,
+            price,
+            cheapest.providerId,
+            cheapest.planId,
+          ],
+        );
+        result.created += 1;
+      }
+
+      await client.query(
+        `delete from plan_provider_codes
+         where service = 'data' and plan_id = $1 and provider_id = any($2::text[])`,
+        [syncedPlanId, sourceProviders],
+      );
+      const fallbacks = offers.filter((offer) => offer.providerId !== cheapest.providerId);
+      if (fallbacks.length) {
+        await client.query(
+          `insert into plan_provider_codes (service, plan_id, provider_id, provider_plan_id, cost)
+           select 'data', $1, t.provider_id, t.provider_plan_id, t.cost
+           from unnest($2::text[], $3::text[], $4::numeric[]) as t(provider_id, provider_plan_id, cost)`,
+          [
+            syncedPlanId,
+            fallbacks.map((offer) => offer.providerId),
+            fallbacks.map((offer) => offer.planId),
+            fallbacks.map((offer) => Math.round(offer.amount * 100) / 100),
+          ],
+        );
+      }
+      for (const offer of offers) {
+        existingByProviderPlan.set(`${offer.providerId}\u0000${offer.planId}`, syncedPlanId);
+      }
+    }
+
+    result.skippedTypes = [...skippedTypeSet];
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function checkPlan(plan: PlanFields) {

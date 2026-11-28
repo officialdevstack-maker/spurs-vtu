@@ -294,6 +294,17 @@ export async function getProviderForCall(
   };
 }
 
+export async function listDataPlanCatalogProviderIds(): Promise<string[]> {
+  const { rows } = await getPool().query<{ id: string }>(
+    `select p.id
+     from providers p
+     join provider_endpoints e on e.provider_id = p.id
+     where e.service = 'data_plans' and e.active
+     order by p.priority, p.name`,
+  );
+  return rows.map((row) => row.id);
+}
+
 export async function getCachedToken(providerId: string): Promise<string | null> {
   const { rows } = await getPool().query<{ token_enc: string }>(
     "select token_enc from provider_tokens where provider_id = $1 and expires_at > now()",

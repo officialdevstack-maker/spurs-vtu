@@ -84,7 +84,7 @@ export function EndpointDialog({
             onChange={(event) => {
               const nextService = event.target.value as ProviderService;
               setService(nextService);
-              if (nextService === "networks") setMethod("GET");
+              if (nextService === "networks" || nextService === "data_plans") setMethod("GET");
             }}
             className={inputClass()}
           >
@@ -105,7 +105,7 @@ export function EndpointDialog({
               onChange={(event) => setMethod(event.target.value as HttpMethod)}
               className={inputClass()}
             >
-              <option value="POST" disabled={service === "networks"}>POST</option>
+              <option value="POST" disabled={service === "networks" || service === "data_plans"}>POST</option>
               <option value="GET">GET</option>
             </select>
           </Field>
@@ -115,12 +115,28 @@ export function EndpointDialog({
               autoFocus
               value={path}
               onChange={(event) => setPath(event.target.value)}
-              placeholder={service === "networks" ? "/api/v1/plans/networks" : "/api/data/"}
+              placeholder={
+                service === "networks"
+                  ? "/api/v1/plans/networks"
+                  : service === "data_plans"
+                    ? "/api/v1/plans/data"
+                    : "/api/data/"
+              }
               maxLength={300}
               className={`${inputClass()} font-[family-name:var(--font-geist-mono)] text-sm`}
             />
           </Field>
         </div>
+
+        {service === "data_plans" && (
+          <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">
+            Sync compares all active provider catalogs. Each catalog must return{" "}
+            <code className="font-[family-name:var(--font-geist-mono)]">
+              {"{ status: \"success\", data: [{ plan_id, network, plan_name, plan_type, plan_day, amount }] }"}
+            </code>
+            .
+          </p>
+        )}
 
         {method === "POST" && (
           <Field

@@ -7,8 +7,9 @@ import * as db from "@/lib/db/airtime-data";
 import type { DiscountFields, PlanFields } from "@/lib/db/airtime-data";
 import { recordAudit } from "@/lib/db/audit";
 import { savePlanProviderCodes } from "@/lib/db/failover";
+import { getDataPlanCatalogs } from "@/lib/providers/bilalsadasub";
 
-export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
+export type ActionResult = { ok: true; id?: string; message?: string } | { ok: false; error: string };
 
 const fail = (error: string): ActionResult => ({ ok: false, error });
 const BAD_INPUT = fail("That change isn't valid. Refresh the page and try again.");
@@ -265,6 +266,43 @@ export async function removePlan(network: string, planId: string): Promise<Actio
   return run(() => db.deletePlan(network, planId), {
     log: () => recordAudit(admin, { action: "airtime.plan.delete", target: planId, summary: `Deleted a data plan on ${network}`, meta: { network } }),
   });
+}
+
+export async function syncDataPlanCatalogs(network: string): Promise<ActionResult> {
+  const admin = await requirePermission("products.manage");
+  if (!network) return BAD_INPUT;
+
+  try {
+    const catalogs = await getDataPlanCatalogs();
+    const result = await db.syncProviderDataPlans(network, catalogs.plans);
+    const skippedTypes = result.skippedTypes.length
+      ? ` Skipped plan types: ${result.skippedTypes.join(", ")}.`
+      : result.skipped
+        ? ` Skipped ${result.skipped} malformed or unmatched plan(s).`
+        : "";
+    const message = `Compared ${catalogs.providerIds.length} provider catalog${catalogs.providerIds.length === 1 ? "" : "s"}. Created ${result.created}, updated ${result.updated}.${skippedTypes}`;
+    await recordAudit(admin, {
+      action: "airtime.plan.sync.catalogs",
+      target: network,
+      summary: "Synced provider data plans",
+      meta: {
+        network,
+        providerIds: catalogs.providerIds,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+        skippedTypes: result.skippedTypes,
+      },
+    });
+    revalidatePath(AIRTIME_DATA_PATH);
+    return { ok: true, message };
+  } catch (error) {
+    console.error(
+      "[airtime-data] Could not sync provider data plans",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    return fail(error instanceof Error ? error.message : "Could not sync provider data plans.");
+  }
 }
 
 function parseDiscount(input: unknown): DiscountFields | null {
