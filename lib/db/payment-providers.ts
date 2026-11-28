@@ -173,7 +173,13 @@ export async function saveFlutterwaveProvider(input: {
     `insert into payment_providers
        (id, name, public_key_enc, secret_key_enc, webhook_hash_enc, enabled,
         deposit_fee_type, deposit_fee_value, minimum_deposit_kobo)
-     values ('flutterwave', 'Flutterwave', $1, $2, $3, $4, $5, $6, $7)
+     values (
+       'flutterwave', 'Flutterwave',
+       coalesce($1, (select public_key_enc from payment_providers where id = 'flutterwave')),
+       coalesce($2, (select secret_key_enc from payment_providers where id = 'flutterwave')),
+       coalesce($3, (select webhook_hash_enc from payment_providers where id = 'flutterwave')),
+       $4, $5, $6, $7
+     )
      on conflict (id) do update
        set public_key_enc = coalesce($1, payment_providers.public_key_enc),
            secret_key_enc = coalesce($2, payment_providers.secret_key_enc),
@@ -211,7 +217,14 @@ export async function savePaymentPointProvider(input: {
     `insert into payment_providers
        (id, name, public_key_enc, secret_key_enc, business_id_enc, webhook_hash_enc, enabled,
         deposit_fee_type, deposit_fee_value, minimum_deposit_kobo)
-    values ('paymentpoint', 'PaymentPoint', $1, $2, $3, coalesce($4, $2), $5, $6, $7, $8)
+    values (
+      'paymentpoint', 'PaymentPoint',
+      coalesce($1, (select public_key_enc from payment_providers where id = 'paymentpoint')),
+      coalesce($2, (select secret_key_enc from payment_providers where id = 'paymentpoint')),
+      coalesce($3, (select business_id_enc from payment_providers where id = 'paymentpoint')),
+      coalesce($4, $2, (select webhook_hash_enc from payment_providers where id = 'paymentpoint')),
+      $5, $6, $7, $8
+    )
      on conflict (id) do update
        set public_key_enc = coalesce($1, payment_providers.public_key_enc),
            secret_key_enc = coalesce($2, payment_providers.secret_key_enc),
