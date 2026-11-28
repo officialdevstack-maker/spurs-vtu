@@ -20,6 +20,7 @@ import {
   removeEndpoint,
   removeProvider,
   saveEndpoint,
+  saveCableOperatorCodes,
   saveNetworkCodes,
   setEndpointActive,
   setProviderEnabled,
@@ -27,6 +28,7 @@ import {
   type ActionResult,
 } from "@/app/admin/gateways/providers/actions";
 import { EndpointDialog } from "./endpoint-dialog";
+import { CableCodesDialog } from "./cable-codes-dialog";
 import { NetworkCodesDialog } from "./network-codes-dialog";
 import { ProviderDialog } from "./provider-dialog";
 
@@ -38,6 +40,7 @@ type Dialog =
   | { kind: "edit-endpoint"; endpoint: ProviderEndpoint }
   | { kind: "delete-endpoint"; endpoint: ProviderEndpoint }
   | { kind: "network-codes" }
+  | { kind: "cable-codes" }
   | null;
 
 const th = "px-3 py-3 text-left text-sm font-medium text-gray-600 dark:text-[#9FB3B7] sm:px-5";
@@ -59,10 +62,12 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 export function ProvidersManager({
   providers,
   networks,
+  cableOperators,
   initialProvider,
 }: {
   providers: Provider[];
   networks: { id: string; name: string }[];
+  cableOperators: { id: string; name: string }[];
   initialProvider?: string;
 }) {
   const router = useRouter();
@@ -226,6 +231,43 @@ export function ProvidersManager({
               )}
             </section>
 
+            <section aria-labelledby="cable-codes-heading" className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h3 id="cable-codes-heading" className="font-[family-name:var(--font-display)] text-lg font-bold">
+                    Cable operator codes
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-[#9FB3B7]">
+                    Map local cable operators to this provider’s cable IDs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDialog({ kind: "cable-codes" })}
+                  className={btnIcon}
+                  aria-label={`Edit cable operator codes for ${provider.name}`}
+                  title="Edit cable operator codes"
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {cableOperators.length === 0 ? (
+                <p className="text-sm text-gray-600 dark:text-[#9FB3B7]">No cable operators available yet.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {cableOperators.map((operator) => (
+                    <div key={operator.id} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-white/10 dark:bg-black/10">
+                      <div className="text-sm font-medium">{operator.name}</div>
+                      <div className="mt-1 font-[family-name:var(--font-geist-mono)] text-sm text-gray-600 dark:text-[#9FB3B7]">
+                        {provider.cableCodes[operator.id] ?? "Not set"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
             <section aria-labelledby="endpoints-heading">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
@@ -368,6 +410,18 @@ export function ProvidersManager({
           onClose={close}
           onSubmit={async (input) => {
             const result = await saveNetworkCodes(provider.id, input);
+            if (result.ok) router.refresh();
+            return result;
+          }}
+        />
+      )}
+      {dialog?.kind === "cable-codes" && provider && (
+        <CableCodesDialog
+          provider={provider}
+          operators={cableOperators}
+          onClose={close}
+          onSubmit={async (input) => {
+            const result = await saveCableOperatorCodes(provider.id, input);
             if (result.ok) router.refresh();
             return result;
           }}

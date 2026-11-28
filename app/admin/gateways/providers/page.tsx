@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { requirePermission } from "@/lib/admin/auth";
 import { ProvidersManager } from "@/components/admin/providers/manager";
-import { getProviders, listNetworkOptions } from "@/lib/db/providers";
+import { getProviders, listCableOperatorOptions, listNetworkOptions } from "@/lib/db/providers";
 
 export const metadata: Metadata = { title: "Providers | Spur VTU" };
 
@@ -14,7 +14,11 @@ export default async function ProvidersPage({
   await connection();
   await requirePermission("gateways.manage");
   const { provider } = await searchParams;
-  const [providers, networks] = await Promise.all([getProviders(), listNetworkOptions()]);
+  const [providers, networks, cableOperators] = await Promise.all([
+    getProviders(),
+    listNetworkOptions(),
+    listCableOperatorOptions(),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -25,7 +29,12 @@ export default async function ProvidersPage({
         </p>
       </header>
 
-      <ProvidersManager providers={providers} networks={networks} initialProvider={provider} />
+      <ProvidersManager
+        providers={providers}
+        networks={networks}
+        cableOperators={cableOperators}
+        initialProvider={provider}
+      />
     </div>
   );
 }

@@ -100,6 +100,19 @@ to `/api/cron/fail-pending` with the header
 `Authorization: Bearer <CRON_SECRET>`. Auto-fail is disabled until enabled on
 that page. Treat provider callback URLs and `CRON_SECRET` as credentials.
 
+## Bilalsadasub provider
+
+Run `npm run db:migrate` to add the disabled Bilalsadasub provider preset for
+airtime, data, and cable. The migration also updates the body templates for
+existing `madisync` airtime, data, and cable endpoints; it leaves their base
+URL, paths, and authentication unchanged.
+
+In **Admin → Gateways → Providers**, set the Bilalsadasub API key as
+`Token <AccessToken>` with header name `Authorization`, then configure provider
+network codes, cable operator codes, and provider plan IDs. Use Bilalsadasub's
+[API documentation](https://docs.bilalsadasub.com) to look up IDs for your
+account. Keep the preset disabled until credentials and ID mappings are set.
+
 ## Public API and webhooks
 
 Run `npm run db:migrate`. Customers on the API package create keys at

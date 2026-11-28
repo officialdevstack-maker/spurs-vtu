@@ -8,7 +8,7 @@ import {
 } from "@/lib/admin/providers";
 import { slugify } from "@/lib/admin/airtime-data";
 import * as db from "@/lib/db/providers";
-import type { EndpointFields, ProviderFields } from "@/lib/db/providers";
+import type { CableOperatorCodeFields, EndpointFields, ProviderFields } from "@/lib/db/providers";
 import { recordAudit } from "@/lib/db/audit";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
@@ -243,4 +243,34 @@ export async function saveNetworkCodes(
   }
   return run(() => db.saveNetworkCodes(providerId, codes), undefined, () =>
     recordAudit(admin, { action: "provider.network_codes.save", target: providerId, summary: "Saved network codes", meta: { networks: codes.map((c) => c.networkId) } }));
+}
+
+export async function saveCableOperatorCodes(
+  providerId: string,
+  input: CableOperatorCodeFields[],
+): Promise<ActionResult> {
+  const admin = await requirePermission("gateways.manage");
+  if (!providerId || !Array.isArray(input) || input.length > 100) return BAD_INPUT;
+
+  const seen = new Set<string>();
+  const codes: CableOperatorCodeFields[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") return BAD_INPUT;
+    const operatorId = clean(item.operatorId);
+    const code = clean(item.code);
+    if (!operatorId || seen.has(operatorId)) return BAD_INPUT;
+    seen.add(operatorId);
+    if (!code) continue;
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(code)) {
+      return fail("Codes can use letters, numbers, - or _, up to 40 characters.");
+    }
+    codes.push({ operatorId, code });
+  }
+  return run(() => db.saveCableOperatorCodes(providerId, codes), undefined, () =>
+    recordAudit(admin, {
+      action: "provider.cable_codes.save",
+      target: providerId,
+      summary: "Saved cable operator codes",
+      meta: { operators: codes.map((code) => code.operatorId) },
+    }));
 }

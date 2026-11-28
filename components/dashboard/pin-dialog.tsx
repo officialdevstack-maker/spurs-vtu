@@ -39,6 +39,15 @@ export function PinDialog({
         <h2 id="pin-dialog-title" className="font-semibold">Enter your PIN</h2>
         <PinField label="Transaction PIN" value={pin} onChange={setPin} autoFocus />
         {error && <p role="alert" className="text-sm text-[#C8432B]">{error}</p>}
+        {pending && (
+          <p role="status" className="flex items-center gap-2 text-sm text-gray-600 dark:text-[#9FB3B7]">
+            <span
+              aria-hidden="true"
+              className="size-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+            />
+            Purchase is processing. Please wait and don&apos;t retry.
+          </p>
+        )}
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onCancel} disabled={pending} className="h-10 rounded-xl border border-gray-300 px-4 text-sm dark:border-white/15">
             Cancel

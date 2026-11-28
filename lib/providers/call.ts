@@ -24,6 +24,11 @@ type Prepared = {
   map: ResponseMap;
 };
 
+function providerCode(value: string): string | number {
+  const numeric = Number(value);
+  return /^\d+$/.test(value) && Number.isSafeInteger(numeric) ? numeric : value;
+}
+
 async function prepare(providerId: string, service: ProviderService, vars: Vars, freshToken: boolean): Promise<Prepared> {
   try {
     const provider = await getProviderForCall(providerId, service);
@@ -35,7 +40,18 @@ async function prepare(providerId: string, service: ProviderService, vars: Vars,
         ? String(resolvedVars.network)
         : undefined;
     if (networkId && provider.networkCodes[networkId] !== undefined) {
-      resolvedVars.network = provider.networkCodes[networkId];
+      resolvedVars.network = providerCode(provider.networkCodes[networkId]);
+    }
+    const operatorId =
+      typeof resolvedVars.operator === "string" ? resolvedVars.operator : undefined;
+    if (operatorId && provider.cableCodes[operatorId] !== undefined) {
+      resolvedVars.operator = providerCode(provider.cableCodes[operatorId]);
+    }
+    if (
+      (service === "data" || service === "cable") &&
+      typeof resolvedVars.plan === "string"
+    ) {
+      resolvedVars.plan = providerCode(resolvedVars.plan);
     }
 
     const url = new URL(`${provider.baseUrl}${fill(provider.path, resolvedVars, "path")}`);
@@ -99,6 +115,7 @@ async function execute(request: Prepared): Promise<ProviderResponse> {
   let data: unknown = text;
   try {
     data = JSON.parse(text);
+    console.log(`Call ${request.url}:`, data);
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
   }

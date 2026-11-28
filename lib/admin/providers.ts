@@ -121,6 +121,8 @@ export type Provider = {
   timeoutMs: number;
   /** networkId -> the provider's own network code */
   networkCodes: Record<string, string>;
+  /** cable operatorId -> the provider's own cable code */
+  cableCodes: Record<string, string>;
   endpoints: ProviderEndpoint[];
 };
 

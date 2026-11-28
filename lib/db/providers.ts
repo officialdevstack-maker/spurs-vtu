@@ -36,6 +36,7 @@ export type EndpointFields = {
 };
 
 export type NetworkCodeFields = { networkId: string; code: string };
+export type CableOperatorCodeFields = { operatorId: string; code: string };
 
 type ProviderRow = {
   id: string;
@@ -76,7 +77,7 @@ const toEndpoint = (row: EndpointRow): ProviderEndpoint => ({
 
 export async function getProviders(): Promise<Provider[]> {
   const pool = getPool();
-  const [providers, endpoints, codes] = await Promise.all([
+  const [providers, endpoints, codes, cableCodes] = await Promise.all([
     pool.query<ProviderRow>(
       `select id, name, kind, base_url, auth_type, auth_name, auth_username,
               secret_enc is not null as has_secret, enabled, priority, timeout_ms
@@ -89,6 +90,9 @@ export async function getProviders(): Promise<Provider[]> {
     ),
     pool.query<{ provider_id: string; network_id: string; code: string }>(
       "select provider_id, network_id, code from provider_network_codes",
+    ),
+    pool.query<{ provider_id: string; operator_id: string; code: string }>(
+      "select provider_id, operator_id, code from provider_cable_codes",
     ),
   ]);
 
@@ -106,6 +110,13 @@ export async function getProviders(): Promise<Provider[]> {
     codesByProvider.set(row.provider_id, map);
   }
 
+  const cableCodesByProvider = new Map<string, Record<string, string>>();
+  for (const row of cableCodes.rows) {
+    const map = cableCodesByProvider.get(row.provider_id) ?? {};
+    map[row.operator_id] = row.code;
+    cableCodesByProvider.set(row.provider_id, map);
+  }
+
   return providers.rows.map((provider) => ({
     id: provider.id,
     name: provider.name,
@@ -119,6 +130,7 @@ export async function getProviders(): Promise<Provider[]> {
     priority: provider.priority,
     timeoutMs: provider.timeout_ms,
     networkCodes: codesByProvider.get(provider.id) ?? {},
+    cableCodes: cableCodesByProvider.get(provider.id) ?? {},
     endpoints: byProvider.get(provider.id) ?? [],
   }));
 }
@@ -226,7 +238,7 @@ export async function deleteEndpoint(providerId: string, endpointId: string): Pr
 }
 
 export async function getProviderForCall(providerId: string, service: ProviderService) {
-  const [providerResult, codesResult] = await Promise.all([
+  const [providerResult, codesResult, cableCodesResult] = await Promise.all([
     getPool().query<
       Omit<ProviderRow, "has_secret"> & {
         secret_enc: string | null;
@@ -249,12 +261,17 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
       "select network_id, code from provider_network_codes where provider_id = $1",
       [providerId],
     ),
+    getPool().query<{ operator_id: string; code: string }>(
+      "select operator_id, code from provider_cable_codes where provider_id = $1",
+      [providerId],
+    ),
   ]);
 
   const row = providerResult.rows[0];
   if (!row) return null;
 
   const networkCodes = Object.fromEntries(codesResult.rows.map((item) => [item.network_id, item.code]));
+  const cableCodes = Object.fromEntries(cableCodesResult.rows.map((item) => [item.operator_id, item.code]));
 
   return {
     id: row.id,
@@ -269,6 +286,7 @@ export async function getProviderForCall(providerId: string, service: ProviderSe
     bodyTemplate: row.endpoint_body,
     responseMap: row.endpoint_map ?? {},
     networkCodes,
+    cableCodes,
   };
 }
 
@@ -296,6 +314,13 @@ export async function listNetworkOptions(): Promise<NetworkOption[]> {
   return rows;
 }
 
+export async function listCableOperatorOptions(): Promise<NetworkOption[]> {
+  const { rows } = await getPool().query<NetworkOption>(
+    "select id, name from cable_operators order by sort_order, name",
+  );
+  return rows;
+}
+
 export async function saveNetworkCodes(providerId: string, codes: NetworkCodeFields[]): Promise<boolean> {
   const client = await getPool().connect();
   try {
@@ -312,6 +337,37 @@ export async function saveNetworkCodes(providerId: string, codes: NetworkCodeFie
          select $1, t.network_id, t.code
          from unnest($2::text[], $3::text[]) as t(network_id, code)`,
         [providerId, codes.map((code) => code.networkId), codes.map((code) => code.code)],
+      );
+    }
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function saveCableOperatorCodes(
+  providerId: string,
+  codes: CableOperatorCodeFields[],
+): Promise<boolean> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const exists = await client.query("select 1 from providers where id = $1", [providerId]);
+    if (!exists.rowCount) {
+      await client.query("rollback");
+      return false;
+    }
+    await client.query("delete from provider_cable_codes where provider_id = $1", [providerId]);
+    if (codes.length > 0) {
+      await client.query(
+        `insert into provider_cable_codes (provider_id, operator_id, code)
+         select $1, t.operator_id, t.code
+         from unnest($2::text[], $3::text[]) as t(operator_id, code)`,
+        [providerId, codes.map((code) => code.operatorId), codes.map((code) => code.code)],
       );
     }
     await client.query("commit");

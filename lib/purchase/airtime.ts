@@ -50,7 +50,14 @@ export async function runAirtimePurchase(
   if (!providerId) return purchaseFail("Airtime can't be bought right now. Please try again later.");
 
   const recipient = groupPhone(phone);
-  const providerVars = { phone, amount, network: networkId, type: quote.typeLabel, reference };
+  const providerVars = {
+    phone,
+    amount,
+    network: networkId,
+    type: quote.typeLabel,
+    plan: null,
+    reference,
+  };
   const alternates = await airtimeAlternates(providerId, providerVars);
   return executePurchase({
     service: "airtime",

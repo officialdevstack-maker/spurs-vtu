@@ -37,6 +37,18 @@ export function EndpointDialog({
   const [active, setActive] = useState(endpoint?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const bodyHint =
+    service === "airtime"
+      ? "Airtime placeholders: {phone} {amount} {network} {type} {plan} {reference}. {plan} is null for airtime; use {type} for the network type (for example VTU)."
+      : service === "cable"
+        ? "Cable placeholders: {phone} {amount} {operator} {plan} {smartcard} {reference}. Map each local operator to the provider's cable ID in Cable operator codes."
+        : "Placeholders: {phone} {amount} {network} {plan} {type} {reference} {meter} {decoder} {disco} {username} {password}";
+  const bodyPlaceholder =
+    service === "airtime"
+      ? '{"network": {network}, "mobile_number": {phone}, "amount": {amount}, "plan": {plan}}'
+      : service === "cable"
+        ? '{"cable": {operator}, "cable_plan": {plan}, "iuc": {smartcard}, "request-id": {reference}}'
+        : '{"network": {network}, "mobile_number": {phone}, "plan": {plan}}';
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +122,7 @@ export function EndpointDialog({
           <Field
             id={`${base}-body`}
             label="Body template"
-            hint="Placeholders: {phone} {amount} {network} {plan} {type} {reference} {meter} {decoder} {disco} {username} {password}"
+            hint={bodyHint}
           >
             <textarea
               id={`${base}-body`}
@@ -119,7 +131,7 @@ export function EndpointDialog({
               rows={5}
               maxLength={2000}
               spellCheck={false}
-              placeholder={'{"network": {network}, "mobile_number": {phone}, "plan": {plan}}'}
+              placeholder={bodyPlaceholder}
               className="w-full rounded-xl border border-[#BFCFD2] bg-white px-4 py-3 font-[family-name:var(--font-geist-mono)] text-sm text-[#12343B] outline-none transition-colors placeholder:text-[#7C9195] focus-visible:border-[#12343B] focus-visible:ring-2 focus-visible:ring-[#12343B]/25"
             />
           </Field>
