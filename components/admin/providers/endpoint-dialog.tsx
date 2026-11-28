@@ -81,7 +81,11 @@ export function EndpointDialog({
             id={`${base}-service`}
             value={service}
             disabled={!!endpoint}
-            onChange={(event) => setService(event.target.value as ProviderService)}
+            onChange={(event) => {
+              const nextService = event.target.value as ProviderService;
+              setService(nextService);
+              if (nextService === "networks") setMethod("GET");
+            }}
             className={inputClass()}
           >
             {available.length === 0 && <option value="">All services added</option>}
@@ -101,7 +105,7 @@ export function EndpointDialog({
               onChange={(event) => setMethod(event.target.value as HttpMethod)}
               className={inputClass()}
             >
-              <option value="POST">POST</option>
+              <option value="POST" disabled={service === "networks"}>POST</option>
               <option value="GET">GET</option>
             </select>
           </Field>
@@ -111,7 +115,7 @@ export function EndpointDialog({
               autoFocus
               value={path}
               onChange={(event) => setPath(event.target.value)}
-              placeholder="/api/data/"
+              placeholder={service === "networks" ? "/api/v1/plans/networks" : "/api/data/"}
               maxLength={300}
               className={`${inputClass()} font-[family-name:var(--font-geist-mono)] text-sm`}
             />

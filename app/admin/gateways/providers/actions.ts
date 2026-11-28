@@ -182,6 +182,7 @@ function parseEndpoint(input: unknown): EndpointFields | string {
 
   const method: HttpMethod | null = raw.method === "GET" || raw.method === "POST" ? raw.method : null;
   if (!method) return "Choose GET or POST.";
+  if (service === "networks" && method !== "GET") return "Network catalog endpoints must use GET.";
 
   const path = typeof raw.path === "string" ? raw.path.trim() : "";
   if (!path.startsWith("/") || path.startsWith("//") || path.length > 300 || /\s/.test(path)) {

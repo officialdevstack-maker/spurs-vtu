@@ -11,23 +11,30 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export async function getBilalsadasubNetworks(): Promise<BilalsadasubNetwork[]> {
-  const provider = await getProviderForCall("bilalsadasub", "auth", true);
+  const provider = await getProviderForCall("bilalsadasub", "networks", true);
   if (!provider) {
-    throw new Error("Bilalsadasub needs an active Login endpoint before networks can be fetched.");
+    throw new Error("Bilalsadasub needs an active Network catalog endpoint before networks can be fetched.");
+  }
+  if (provider.method !== "GET") {
+    throw new Error("Bilalsadasub's Network catalog endpoint must use GET.");
   }
 
-  const token = await getLoginToken("bilalsadasub", false, true);
-  const url = new URL("/api/v1/plans/networks", provider.baseUrl);
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Token ${token}`,
-    },
-    cache: "no-store",
-    redirect: "error",
-    signal: AbortSignal.timeout(15000),
-  });
+  const url = new URL(provider.path, provider.baseUrl);
+  const request = (token: string) =>
+    fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `${provider.authName || "Bearer"} ${token}`,
+      },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+    });
+  let response = await request(await getLoginToken("bilalsadasub", false, true));
+  if (response.status === 401) {
+    response = await request(await getLoginToken("bilalsadasub", true, true));
+  }
   if (!response.ok) {
     throw new Error(`Bilalsadasub network catalog returned HTTP ${response.status}.`);
   }
