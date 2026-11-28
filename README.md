@@ -76,6 +76,13 @@ signatures are verified with HMAC-SHA256 before a matching account payment is
 credited. Customers with a phone number on their profile can create a permanent
 PaymentPoint account or an amount-specific temporary OPay account.
 
+Admins can configure a per-provider minimum deposit and either a flat or
+percentage deposit fee under **Admin → Gateways → Payment**. Fees are deducted
+from the amount credited to the wallet. Deposits below the minimum, deposits
+fully consumed by the fee, and temporary-account payments with an unexpected
+amount are held for manual review instead of being credited. The same page
+shows a copyable webhook URL for each payment provider.
+
 Payment provider credentials are encrypted at rest. Set `PROVIDER_SECRET_KEY`
 to a dedicated, randomly generated 32-byte base64 key before saving provider
 secrets. Keep this key private and back it up securely; changing it makes

@@ -30,7 +30,9 @@ const fieldClass =
 
 function noteFor(tx: HistoryItem, admin: boolean): string | null {
   if (tx.status === "pending") {
-    if (admin && tx.failureReason?.startsWith("Manual review required:")) return tx.failureReason;
+    if (tx.failureReason?.startsWith("Manual review required:")) {
+      return admin ? tx.failureReason : "Payment received and awaiting review.";
+    }
     return "Waiting for the network to confirm.";
   }
   if (tx.status !== "failed") return null;

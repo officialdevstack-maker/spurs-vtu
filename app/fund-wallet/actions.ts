@@ -130,7 +130,7 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
   );
   const phoneNumber = rows[0]?.phone?.trim();
   if (!phoneNumber) {
-    return { ok: false, error: "Add a phone number to your Spurs account before creating a PaymentPoint account." };
+    return { ok: false, error: "Add a phone number to your Spurs account before creating a funding account." };
   }
 
   const reservation = await reservePaymentPointAccount(user.sub);
@@ -142,7 +142,7 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
     ) {
       return publicAccount(reservation.account);
     }
-    return { ok: false, error: "Your PaymentPoint account is already being created. Refresh the page shortly." };
+    return { ok: false, error: "Your account is already being created. Refresh the page shortly." };
   }
 
   const name = customerName(user);
@@ -157,8 +157,8 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
     return {
       ok: false,
       error: requestRejected
-        ? "PaymentPoint rejected the account request. Check your profile details and try again."
-        : "PaymentPoint did not return usable account details. Check the server log and try again.",
+        ? "Your details were not accepted. Check your profile details and try again."
+        : "We couldn't retrieve account details. Try again later.",
     };
   }
 
@@ -177,7 +177,7 @@ export async function createPaymentPointFundingAccount(): Promise<FundingActionR
     console.error("[funding] PaymentPoint account was created but could not be saved", error instanceof Error ? error.name : "Unknown error");
     return {
       ok: false,
-      error: "PaymentPoint created your account, but we couldn't save its details. Contact support before trying again.",
+      error: "Your account was created, but we couldn't save its details. Contact support before trying again.",
     };
   }
 }
@@ -210,7 +210,7 @@ export async function createPaymentPointTemporaryFundingAccount(
   );
   const phoneNumber = rows[0]?.phone?.trim();
   if (!phoneNumber) {
-    return { ok: false, error: "Add a phone number to your Spurs account before creating a PaymentPoint account." };
+    return { ok: false, error: "Add a phone number to your Spurs account before creating a one-time account." };
   }
 
   const reference = randomUUID();
@@ -233,7 +233,7 @@ export async function createPaymentPointTemporaryFundingAccount(
     logPaymentPointError("[funding] PaymentPoint temporary account setup failed", error);
     return {
       ok: false,
-      error: "PaymentPoint did not return usable account details. Check the server log and try again.",
+      error: "We couldn't retrieve one-time account details. Try again later.",
     };
   }
 
@@ -263,7 +263,7 @@ export async function createPaymentPointTemporaryFundingAccount(
     );
     return {
       ok: false,
-      error: "PaymentPoint created the temporary account, but we couldn't save its details. Try again.",
+      error: "Your one-time account was created, but we couldn't save its details. Try again.",
     };
   }
 }

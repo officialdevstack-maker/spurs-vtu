@@ -62,7 +62,7 @@ For example:
 
 Do not round or convert currency in the app. The server already calculates wallet and package values. Temporary funding accepts:
 
-- Minimum: `100`
+- Minimum: the configured provider minimum, returned as `minimumDepositKobo` by the funding endpoint (defaults to `100` naira)
 - Maximum: `1,000,000`
 - Maximum precision: two decimal places
 
@@ -341,14 +341,16 @@ Required scope: `balance`
         "accountNumber": "0987654321",
         "bankName": "Example Bank",
         "status": "pending",
-        "expiresAt": "2026-11-26T13:00:00.000Z"
+        "expiresAt": null
       }
-    ]
+    ],
+    "minimumDepositKobo": 10000
   }
 }
 ```
 
 `pending[].amountKobo` is an implementation detail from the funding helper; the mobile app should display `amountKobo / 100` in naira.
+`pending[].status` may be `creating`, `pending`, or `review`. Stop polling when a deposit is held for review; it is not credited automatically. `expiresAt` may be `null` for accounts without an expiry.
 
 If no permanent account exists, `permanent` is `null`.
 
@@ -412,23 +414,23 @@ Response:
     "accountName": "Customer Name",
     "amount": 500,
     "reference": "funding-uuid",
-    "expiresAt": "2026-11-26T13:00:00.000Z"
+    "expiresAt": null
   }
 }
 ```
 
-Save `reference` for support and status tracking. A temporary account is tied to the requested amount and expires according to `expiresAt`.
+Save `reference` for support and status tracking. A temporary account is tied to the requested amount. `expiresAt` can be `null`.
 
 ### Confirming funding
 
-Wallet funding is confirmed by Flutterwave webhooks. The mobile app should not mark funding successful merely because an account was created.
+Wallet funding is confirmed by payment-provider webhooks. The mobile app should not mark funding successful merely because an account was created. The admin-configured deposit fee is deducted before the wallet is credited.
 
 Recommended flow:
 
 1. Create the funding account.
 2. Show bank-transfer instructions.
 3. Poll `GET /api/v1/balance` while the user waits.
-4. Stop polling after the balance increases or the funding intent expires.
+4. Stop polling after the balance increases, the funding intent expires, or its status becomes `review`.
 5. Refresh `GET /api/v1/wallet/funding` to reconcile pending intents.
 
 ---

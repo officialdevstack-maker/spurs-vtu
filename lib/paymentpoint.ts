@@ -76,14 +76,17 @@ function safeProviderMessage(body: unknown, responseText: string, secrets: reado
   return safeMessage.slice(0, 500);
 }
 
-function bankAccountsFrom(body: Record<string, unknown> | null): unknown[] {
+function bankAccountsFrom(
+  body: Record<string, unknown> | null,
+): { raw: unknown; accounts: unknown[] } {
   const data = asRecord(body?.data);
-  const rawBankAccounts = body?.bankAccounts ?? data?.bankAccounts;
-  return Array.isArray(rawBankAccounts)
-    ? rawBankAccounts
-    : rawBankAccounts === undefined || rawBankAccounts === null
+  const raw = body?.bankAccounts ?? data?.bankAccounts;
+  const accounts = Array.isArray(raw)
+    ? raw
+    : raw === undefined || raw === null
       ? []
-      : [rawBankAccounts];
+      : [raw];
+  return { raw, accounts };
 }
 
 function responseShape(
@@ -91,8 +94,7 @@ function responseShape(
   secrets: readonly string[],
 ): string {
   const data = asRecord(body?.data);
-  const rawBankAccounts = body?.bankAccounts ?? data?.bankAccounts;
-  const bankAccounts = bankAccountsFrom(body);
+  const { raw: rawBankAccounts, accounts: bankAccounts } = bankAccountsFrom(body);
   const firstAccount = asRecord(bankAccounts[0]);
   const providerErrors = errorText(body?.errors);
   return [
@@ -160,7 +162,9 @@ async function createVirtualAccount(
   }
 
   const body = asRecord(payload);
-  const account = bankAccountsFrom(body).map(accountDetails).find((details) => details !== null);
+  const account = bankAccountsFrom(body).accounts
+    .map(accountDetails)
+    .find((details) => details !== null);
   if (!response.ok || !account) {
     throw new PaymentPointApiError(
       response.status,

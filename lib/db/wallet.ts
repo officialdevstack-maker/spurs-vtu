@@ -40,20 +40,20 @@ async function getDepositPolicy(client: PoolClient, provider: DepositProvider): 
         feeValue: row.deposit_fee_value,
         minimumDepositKobo: BigInt(row.minimum_deposit_kobo),
       }
-    : { feeType: "flat", feeValue: "0.00", minimumDepositKobo: 10_000n };
+    : { feeType: "flat", feeValue: "0.00", minimumDepositKobo: BigInt(10_000) };
 }
 
 function decimalToMinorUnits(value: string): bigint {
   const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
   if (!match) throw new Error("Saved deposit fee is invalid.");
-  return BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
+  return BigInt(match[1]) * BigInt(100) + BigInt((match[2] ?? "").padEnd(2, "0"));
 }
 
 function calculateDepositFeeKobo(amountKobo: number, policy: DepositPolicy): bigint {
   const amount = BigInt(amountKobo);
   const feeValue = decimalToMinorUnits(policy.feeValue);
   if (policy.feeType === "flat") return feeValue;
-  return (amount * feeValue + 5_000n) / 10_000n;
+  return (amount * feeValue + BigInt(5_000)) / BigInt(10_000);
 }
 
 function depositReviewReason(
@@ -76,7 +76,7 @@ function depositReviewReason(
 
 function depositHistoryDetail(isTemporary: boolean, feeKobo: bigint): string {
   const detail = isTemporary ? "Temporary bank transfer" : "Bank transfer";
-  return feeKobo > 0n ? `${detail} · Deposit fee ₦${(Number(feeKobo) / 100).toFixed(2)}` : detail;
+  return feeKobo > BigInt(0) ? `${detail} · Deposit fee ₦${(Number(feeKobo) / 100).toFixed(2)}` : detail;
 }
 
 export async function getWalletBalanceKobo(customerId: string): Promise<bigint> {

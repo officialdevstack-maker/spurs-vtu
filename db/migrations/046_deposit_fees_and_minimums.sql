@@ -29,3 +29,28 @@ alter table paymentpoint_funding_intents
 alter table paymentpoint_funding_intents
   add constraint paymentpoint_funding_intents_status_check
     check (status in ('creating', 'pending', 'completed', 'failed', 'review'));
+
+do $$
+declare
+  state_constraint text;
+begin
+  select conname
+    into state_constraint
+    from pg_constraint
+   where conrelid = 'paymentpoint_funding_intents'::regclass
+     and contype = 'c'
+     and pg_get_constraintdef(oid) like '%account_number%'
+     and pg_get_constraintdef(oid) like '%bank_name%';
+
+  if state_constraint is not null then
+    execute format('alter table paymentpoint_funding_intents drop constraint %I', state_constraint);
+  end if;
+end;
+$$;
+
+alter table paymentpoint_funding_intents
+  add constraint paymentpoint_funding_intents_account_state_check
+    check (
+      (status in ('creating', 'failed') and account_number is null and bank_name is null)
+      or (status in ('pending', 'completed', 'review') and account_number is not null and bank_name is not null)
+    );
